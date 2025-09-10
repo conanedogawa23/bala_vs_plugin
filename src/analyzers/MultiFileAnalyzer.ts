@@ -1,16 +1,16 @@
-import * as vscode from 'vscode';
-import pLimit from 'p-limit';
 import { ContextStore } from '@/services/ContextStore';
-import { HuggingFaceService } from '@/services/HuggingFaceService';
-import { AnalysisResult, WorkspaceSummary, FileContext } from '@/types';
+import { OllamaService } from '@/services/OllamaService';
+import { AnalysisResult, FileContext, WorkspaceSummary } from '@/types';
+import pLimit from 'p-limit';
+import * as vscode from 'vscode';
 
 export class MultiFileAnalyzer {
   private contextStore: ContextStore;
-  private hfService: HuggingFaceService;
+  private ollamaService: OllamaService;
 
-  constructor(contextStore: ContextStore, hfService: HuggingFaceService) {
+  constructor(contextStore: ContextStore, ollamaService: OllamaService) {
     this.contextStore = contextStore;
-    this.hfService = hfService;
+    this.ollamaService = ollamaService;
   }
 
   public async analyzeWorkspace(): Promise<void> {
@@ -80,14 +80,14 @@ export class MultiFileAnalyzer {
     channel.appendLine('');
     channel.appendLine('Top-level summary:');
 
-    // Ask HF to generate a combined summary across files
+    // Ask Ollama to generate a combined summary across files
     const fileContexts: FileContext[] = [];
     for (const result of summary.analysisResults) {
       const ctx = await this.contextStore.getFileContext(result.fileUri);
       if (ctx) fileContexts.push(ctx);
     }
 
-    const aiSummary = await this.hfService.generateSummary(fileContexts);
+    const aiSummary = await this.ollamaService.generateSummary(fileContexts);
     channel.appendLine(aiSummary);
     channel.show(true);
   }
@@ -135,9 +135,9 @@ export class MultiFileAnalyzer {
       // Update relationships based on current content
       const relationships = await this.contextStore.analyzeFileRelationships(uri, fileContext.content, fileContext.language);
 
-      // Ask AI for analysis and suggestions
-      const ai = await this.hfService.analyzeCode(fileContext);
-      const suggestions = await this.hfService.getSuggestions(fileContext, ai.summary);
+      // Ask Ollama AI for analysis and suggestions
+      const ai = await this.ollamaService.analyzeCode(fileContext);
+      const suggestions = await this.ollamaService.getSuggestions(fileContext, ai.summary);
 
       const result: AnalysisResult = {
         fileUri: uri,

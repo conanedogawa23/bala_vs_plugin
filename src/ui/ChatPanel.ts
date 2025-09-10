@@ -1,7 +1,7 @@
 import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
 import { ChatService } from '@/services/ChatService';
 import { ContextStore } from '@/services/ContextStore';
-import { HuggingFaceService } from '@/services/HuggingFaceService';
+import { OllamaService } from '@/services/OllamaService';
 import {
     ChatContext,
     ChatMessage,
@@ -18,7 +18,7 @@ export class ChatPanel {
   public static currentPanel: ChatPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
-  private readonly _hfService: HuggingFaceService;
+  private readonly _ollamaService: OllamaService;
   private readonly _contextStore: ContextStore;
   private readonly _chatService: ChatService;
   private _disposables: vscode.Disposable[] = [];
@@ -27,7 +27,7 @@ export class ChatPanel {
 
   public static createOrShow(
     extensionUri: vscode.Uri,
-    hfService: HuggingFaceService,
+    ollamaService: OllamaService,
     contextStore: ContextStore,
     analyzer?: MultiFileAnalyzer
   ) {
@@ -57,7 +57,7 @@ export class ChatPanel {
       }
     );
 
-    ChatPanel.currentPanel = new ChatPanel(panel, extensionUri, hfService, contextStore, analyzer);
+    ChatPanel.currentPanel = new ChatPanel(panel, extensionUri, ollamaService, contextStore, analyzer);
   }
 
   public static kill() {
@@ -68,25 +68,25 @@ export class ChatPanel {
   public static revive(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
-    hfService: HuggingFaceService,
+    ollamaService: OllamaService,
     contextStore: ContextStore,
     analyzer?: MultiFileAnalyzer
   ) {
-    ChatPanel.currentPanel = new ChatPanel(panel, extensionUri, hfService, contextStore, analyzer);
+    ChatPanel.currentPanel = new ChatPanel(panel, extensionUri, ollamaService, contextStore, analyzer);
   }
 
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
-    hfService: HuggingFaceService,
+    ollamaService: OllamaService,
     contextStore: ContextStore,
     analyzer?: MultiFileAnalyzer
   ) {
     this._panel = panel;
     this._extensionUri = extensionUri;
-    this._hfService = hfService;
+    this._ollamaService = ollamaService;
     this._contextStore = contextStore;
-    this._chatService = new ChatService(hfService, contextStore, analyzer);
+    this._chatService = new ChatService(ollamaService, contextStore, analyzer);
 
     // Initialize state
     this._panelState = {

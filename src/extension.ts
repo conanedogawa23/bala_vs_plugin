@@ -1,30 +1,33 @@
 import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
 import { ContextStore } from '@/services/ContextStore';
-import { HuggingFaceService } from '@/services/HuggingFaceService';
+import { OllamaService } from '@/services/OllamaService';
 import { ChatPanel } from '@/ui/ChatPanel';
 import * as vscode from 'vscode';
 
 let analyzer: MultiFileAnalyzer | undefined;
 let contextStore: ContextStore | undefined;
-let hfService: HuggingFaceService | undefined;
+let ollamaService: OllamaService | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('Bala AI Code Analyzer is now active!');
 
-  // 🚨 HARDCODED API KEY - FOR TESTING ONLY! 
-  // TODO: Change back to proper configuration for production
-  const apiKey = process.env.HF_API_KEY || '';
+  // Get Ollama configuration from VSCode settings
+  const config = vscode.workspace.getConfiguration('balaAnalyzer');
+  const baseURL = config.get<string>('ollama.baseURL') || 'http://localhost:11434/v1';
+  const model = config.get<string>('ollama.model') || 'llama3.2:3b';
+  const timeout = config.get<number>('ollama.timeout') || 30000;
+  const maxRetries = config.get<number>('ollama.maxRetries') || 3;
 
-  // Skip API key validation since we're hardcoding it
-  console.log('Using hardcoded API key for testing');
+  console.log(`Using Ollama server: ${baseURL} with model: ${model}`);
 
   contextStore = new ContextStore(context.globalStorageUri);
-  hfService = new HuggingFaceService({ 
-    apiKey: apiKey.trim(),
-    timeout: 30000,  // Increased to 30s to handle model overload
-    maxRetries: 2    // 2 retries to handle temporary overloading
+  ollamaService = new OllamaService({ 
+    baseURL,
+    model,
+    timeout,
+    maxRetries
   });
-  analyzer = new MultiFileAnalyzer(contextStore, hfService);
+  analyzer = new MultiFileAnalyzer(contextStore, ollamaService);
 
   context.subscriptions.push(
     vscode.commands.registerCommand('balaAnalyzer.analyzeWorkspace', async () => {
@@ -40,11 +43,11 @@ export async function activate(context: vscode.ExtensionContext) {
       await analyzer.analyzeFiles(uris);
     }),
     vscode.commands.registerCommand('balaAnalyzer.openAIChat', async () => {
-      if (!hfService || !contextStore) {
+      if (!ollamaService || !contextStore) {
         vscode.window.showErrorMessage('Bala AI: Services not properly initialized. Please restart the extension.');
         return;
       }
-      ChatPanel.createOrShow(context.extensionUri, hfService, contextStore, analyzer);
+      ChatPanel.createOrShow(context.extensionUri, ollamaService, contextStore, analyzer);
     }),
     vscode.commands.registerCommand('balaAnalyzer.generateSummary', async () => {
       if (!analyzer) { return; }

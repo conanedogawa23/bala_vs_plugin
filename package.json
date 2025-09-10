@@ -1,7 +1,7 @@
 {
   "name": "bala-ai-code-analyzer",
   "displayName": "Bala AI Code Analyzer",
-  "description": "AI-powered VSCode extension for multi-file workspace analysis with context retention and Hugging Face integration",
+  "description": "AI-powered VSCode extension for multi-file workspace analysis with context retention and Ollama integration",
   "version": "1.0.0",
   "publisher": "bala-dev",
   "engines": {
@@ -76,31 +76,31 @@
       }
     ],
     "configuration": {
-      "title": "Bala AI Code Analyzer",
+      "title": "Bala AI Code Analyzer (Ollama)",
       "properties": {
-        "balaAnalyzer.huggingFace.apiKey": {
+        "balaAnalyzer.ollama.baseURL": {
           "type": "string",
-          "default": "",
-          "markdownDescription": "Your Hugging Face API key. Get yours from [Hugging Face Settings](https://huggingface.co/settings/tokens)"
+          "default": "http://localhost:11434/v1",
+          "markdownDescription": "Ollama server base URL. Default is http://localhost:11434/v1"
         },
-        "balaAnalyzer.huggingFace.model": {
+        "balaAnalyzer.ollama.model": {
           "type": "string",
-          "enum": [
-            "auto",
-            "microsoft/codebert-base",
-            "microsoft/DialoGPT-medium",
-            "codellama/CodeLlama-7b-Instruct-hf",
-            "WizardLM/WizardCoder-Python-7B-V1.0"
-          ],
-          "enumDescriptions": [
-            "Automatically select the best model for each analysis type",
-            "Use CodeBERT for general code analysis",
-            "Use DialoGPT for conversational code review",
-            "Use CodeLlama for code generation and completion",
-            "Use WizardCoder for Python-specific analysis"
-          ],
-          "default": "auto",
-          "description": "AI model to use for code analysis"
+          "default": "llama3.2:3b",
+          "markdownDescription": "Ollama model to use for code analysis. Available models can be seen with 'ollama list'"
+        },
+        "balaAnalyzer.ollama.timeout": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 10000,
+          "maximum": 120000,
+          "description": "Ollama API timeout in milliseconds"
+        },
+        "balaAnalyzer.ollama.maxRetries": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of retries for Ollama API calls"
         },
         "balaAnalyzer.analysis.maxFileSize": {
           "type": "number",
@@ -360,15 +360,15 @@
     "typescript": "^5.1.0",
     "webpack": "^5.88.0",
     "webpack-cli": "^5.1.0"
-  },
-  "dependencies": {
-    "@huggingface/inference": "^4.7.1",
-    "axios": "^1.6.0",
-    "cheerio": "^1.0.0-rc.12",
-    "lodash": "^4.17.21",
-    "p-limit": "^4.0.0",
-    "uuid": "^9.0.0",
-    "winston": "^3.10.0"
+    },
+    "dependencies": {
+      "openai": "^5.20.1",
+      "axios": "^1.6.0",
+      "cheerio": "^1.0.0-rc.12",
+      "lodash": "^4.17.21",
+      "p-limit": "^4.0.0",
+      "uuid": "^9.0.0",
+      "winston": "^3.10.0"
   },
   "extensionDependencies": [],
   "bundledDependencies": [],

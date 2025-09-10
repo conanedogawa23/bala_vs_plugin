@@ -1,5 +1,5 @@
-import * as vscode from 'vscode';
 import * as path from 'path';
+import * as vscode from 'vscode';
 
 export function getLanguageFromFilePath(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
@@ -116,6 +116,171 @@ export async function readFileContent(uri: vscode.Uri, maxSize: number = 2 * 102
     console.error(`Failed to read file ${uri.fsPath}:`, error);
     return null;
   }
+}
+
+/**
+ * Enhanced file content reader that prioritizes active editor content over file system
+ * This ensures we analyze what the user is currently seeing/editing, including unsaved changes
+ */
+export async function readFileContentSmart(uri: vscode.Uri, maxSize: number = 2 * 1024 * 1024): Promise<{ content: string; language: string; isFromEditor: boolean } | null> {
+  try {
+    // First priority: Check if file is open in any visible editor
+    const visibleEditors = vscode.window.visibleTextEditors;
+    for (const editor of visibleEditors) {
+      if (editor.document.uri.toString() === uri.toString()) {
+        console.log(`📝 Reading from active editor: ${uri.fsPath}`);
+        return {
+          content: editor.document.getText(),
+          language: editor.document.languageId,
+          isFromEditor: true
+        };
+      }
+    }
+
+    // Second priority: Check if file is open in any tab (even if not visible)
+    const openDocuments = vscode.workspace.textDocuments;
+    for (const document of openDocuments) {
+      if (document.uri.toString() === uri.toString()) {
+        console.log(`📄 Reading from open document: ${uri.fsPath}`);
+        return {
+          content: document.getText(),
+          language: document.languageId,
+          isFromEditor: true
+        };
+      }
+    }
+
+    // Third priority: Try to open the document (this loads it into memory)
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      console.log(`💾 Reading from opened document: ${uri.fsPath}`);
+      return {
+        content: document.getText(),
+        language: document.languageId,
+        isFromEditor: false
+      };
+    } catch (openError) {
+      console.log(`⚠️ Could not open document, falling back to file system: ${uri.fsPath}`);
+    }
+
+    // Final fallback: Read from file system
+    const stat = await vscode.workspace.fs.stat(uri);
+    if (stat.size > maxSize) {
+      vscode.window.showWarningMessage(`File ${uri.fsPath} is too large (${formatFileSize(stat.size)}). Skipping analysis.`);
+      return null;
+    }
+
+    const content = await vscode.workspace.fs.readFile(uri);
+    const contentStr = new TextDecoder().decode(content);
+    
+    // Try to detect language from file extension
+    const language = detectLanguageFromPath(uri.fsPath);
+    
+    console.log(`📁 Reading from file system: ${uri.fsPath}`);
+    return {
+      content: contentStr,
+      language,
+      isFromEditor: false
+    };
+  } catch (error) {
+    console.error(`Failed to read file ${uri.fsPath}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Get file content prioritizing active editor, with support for absolute paths
+ */
+export async function getFileContentForAnalysis(
+  filePathOrUri: string | vscode.Uri, 
+  maxSize: number = 2 * 1024 * 1024
+): Promise<{ content: string; language: string; uri: vscode.Uri; isFromEditor: boolean } | null> {
+  try {
+    let uri: vscode.Uri;
+    
+    // Handle string paths (including absolute paths)
+    if (typeof filePathOrUri === 'string') {
+      // Check if it's an absolute path
+      if (path.isAbsolute(filePathOrUri)) {
+        uri = vscode.Uri.file(filePathOrUri);
+        console.log(`🔗 Converting absolute path to URI: ${filePathOrUri}`);
+      } else {
+        // Try to resolve relative to workspace
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+          const workspacePath = workspaceFolders[0]!.uri.fsPath;
+          const fullPath = path.resolve(workspacePath, filePathOrUri);
+          uri = vscode.Uri.file(fullPath);
+          console.log(`📂 Resolving relative path: ${filePathOrUri} -> ${fullPath}`);
+        } else {
+          console.error(`Cannot resolve relative path without workspace: ${filePathOrUri}`);
+          return null;
+        }
+      }
+    } else {
+      uri = filePathOrUri;
+    }
+
+    const result = await readFileContentSmart(uri, maxSize);
+    if (!result) {
+      return null;
+    }
+
+    return {
+      content: result.content,
+      language: result.language,
+      uri,
+      isFromEditor: result.isFromEditor
+    };
+  } catch (error) {
+    console.error(`Failed to get file content for analysis:`, error);
+    return null;
+  }
+}
+
+/**
+ * Detect programming language from file path
+ */
+function detectLanguageFromPath(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const languageMap: Record<string, string> = {
+    '.js': 'javascript',
+    '.jsx': 'javascriptreact', 
+    '.ts': 'typescript',
+    '.tsx': 'typescriptreact',
+    '.py': 'python',
+    '.java': 'java',
+    '.cs': 'csharp',
+    '.cpp': 'cpp',
+    '.cc': 'cpp',
+    '.cxx': 'cpp',
+    '.c': 'c',
+    '.h': 'c',
+    '.hpp': 'cpp',
+    '.php': 'php',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.rb': 'ruby',
+    '.swift': 'swift',
+    '.kt': 'kotlin',
+    '.kts': 'kotlin',
+    '.json': 'json',
+    '.xml': 'xml',
+    '.html': 'html',
+    '.css': 'css',
+    '.scss': 'scss',
+    '.sass': 'sass',
+    '.less': 'less',
+    '.md': 'markdown',
+    '.sql': 'sql',
+    '.sh': 'shellscript',
+    '.bash': 'shellscript',
+    '.zsh': 'shellscript',
+    '.yml': 'yaml',
+    '.yaml': 'yaml'
+  };
+  
+  return languageMap[ext] || 'plaintext';
 }
 
 export function truncateText(text: string, maxLength: number = 100): string {

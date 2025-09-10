@@ -1,15 +1,16 @@
-import * as vscode from 'vscode';
+import {
+    AnalysisResult,
+    ConversationHistory,
+    FileContext,
+    FileRelationship,
+    RelationshipType,
+    WorkspaceSummary
+} from '@/types';
+import { readFileContentSmart } from '@/utils/fileUtils';
+import * as crypto from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as crypto from 'crypto';
-import { 
-  FileContext, 
-  FileRelationship, 
-  AnalysisResult, 
-  RelationshipType,
-  WorkspaceSummary,
-  ConversationHistory 
-} from '@/types';
+import * as vscode from 'vscode';
 
 export class ContextStore {
   private storageUri: vscode.Uri;
@@ -153,20 +154,38 @@ export class ContextStore {
 
   public async createFileContext(uri: vscode.Uri): Promise<FileContext | undefined> {
     try {
-      const document = await vscode.workspace.openTextDocument(uri);
-      const content = document.getText();
-      const stat = await fs.stat(uri.fsPath);
+      // Use smart content reading that prioritizes active editor content
+      const contentResult = await readFileContentSmart(uri);
+      if (!contentResult) {
+        console.error(`Failed to read content for ${uri.fsPath}`);
+        return undefined;
+      }
+
+      let lastModified: Date;
+      let fileSize: number;
+      
+      try {
+        const stat = await fs.stat(uri.fsPath);
+        lastModified = stat.mtime;
+        fileSize = stat.size;
+      } catch {
+        // If we can't get file stats (e.g., unsaved file), use current time and content length
+        lastModified = new Date();
+        fileSize = contentResult.content.length;
+      }
       
       const fileContext: FileContext = {
         uri,
-        content,
-        language: document.languageId,
-        lastModified: stat.mtime,
-        size: stat.size,
-        hash: this.calculateHash(content),
+        content: contentResult.content,
+        language: contentResult.language,
+        lastModified,
+        size: fileSize,
+        hash: this.calculateHash(contentResult.content),
         relationships: await this.getRelationships(uri)
       };
 
+      // Store the context with a note about whether it came from editor
+      console.log(`📝 Created file context for ${uri.fsPath} (from ${contentResult.isFromEditor ? 'editor' : 'file system'})`);
       await this.storeFileContext(fileContext);
       return fileContext;
     } catch (error) {

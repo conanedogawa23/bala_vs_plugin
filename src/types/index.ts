@@ -76,8 +76,9 @@ export interface WorkspaceSummary {
   timestamp: Date;
 }
 
-export interface HuggingFaceConfig {
-  apiKey: string;
+export interface OllamaConfig {
+  apiKey?: string; // Optional for Ollama
+  baseURL?: string; // Default: http://localhost:11434/v1
   model?: string;
   timeout?: number;
   maxRetries?: number;
@@ -103,7 +104,7 @@ export interface CacheConfig {
 }
 
 export interface ExtensionConfig {
-  huggingFace: HuggingFaceConfig;
+  ollama: OllamaConfig; // Primary AI service
   analysis: AnalysisConfig;
   context: ContextConfig;
   cache: CacheConfig;
@@ -161,6 +162,7 @@ export interface ChatMessageMetadata {
   suggestions?: Suggestion[];
   fileAnalyzed?: string;
   relatedFiles?: string[];
+  isFromEditor?: boolean; // Whether the analyzed content came from active editor or file system
 }
 
 export interface ChatSession {

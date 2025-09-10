@@ -4,7 +4,7 @@ An intelligent VSCode extension that leverages AI to analyze multiple files in y
 
 ## Features
 
-🤖 **AI-Powered Analysis** - Uses Hugging Face models to analyze your code
+🤖 **AI-Powered Analysis** - Uses Ollama models to analyze your code locally
 📁 **Multi-File Processing** - Analyze entire workspaces or selected files
 🧠 **Context Retention** - Tracks relationships between files and maintains analysis history
 ✨ **Smart Suggestions** - Get AI-powered code improvement recommendations
@@ -17,12 +17,12 @@ An intelligent VSCode extension that leverages AI to analyze multiple files in y
 
 Install from the VS Code Marketplace or build from source.
 
-### 2. Configure Hugging Face API
+### 2. Setup Ollama
 
-1. Get your API key from [Hugging Face](https://huggingface.co/settings/tokens)
-2. Open VS Code Settings (`Cmd/Ctrl + ,`)
-3. Search for "Bala AI"
-4. Enter your API key in `balaAnalyzer.huggingFace.apiKey`
+1. Install Ollama from [ollama.ai](https://ollama.ai)
+2. Pull a model: `ollama pull llama3.2:3b`
+3. Start Ollama server: `ollama serve`
+4. The extension will connect to `http://localhost:11434` by default
 
 ### 3. Start Analyzing
 
@@ -47,12 +47,14 @@ Install from the VS Code Marketplace or build from source.
 
 The extension provides extensive configuration options:
 
-### Hugging Face Settings
+### Ollama Settings
 
 ```json
 {
-  "balaAnalyzer.huggingFace.apiKey": "your-api-key-here",
-  "balaAnalyzer.huggingFace.model": "auto"
+  "balaAnalyzer.ollama.baseURL": "http://localhost:11434/v1",
+  "balaAnalyzer.ollama.model": "llama3.2:3b",
+  "balaAnalyzer.ollama.timeout": 30000,
+  "balaAnalyzer.ollama.maxRetries": 3
 }
 ```
 
@@ -99,11 +101,11 @@ The extension provides extensive configuration options:
 
 ## Privacy & Security
 
-- **Local Processing**: Option to process sensitive data locally
+- **Fully Local Processing**: All AI processing happens locally with Ollama
+- **No External API Calls**: Your code never leaves your machine
 - **Configurable Telemetry**: Anonymous usage telemetry can be disabled
-- **Secure API Communication**: All API calls use secure HTTPS
 - **Data Retention**: Configurable context retention periods
-- **No Code Storage**: Your code is not permanently stored by external services
+- **Complete Privacy**: No internet connection required for AI analysis
 
 ## Development
 
@@ -184,7 +186,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### v1.0.0
 - Initial release
 - Multi-file workspace analysis
-- Hugging Face API integration
+- Ollama local AI integration
 - Context retention and relationship mapping
 - AI-powered suggestions
 - Comprehensive reporting
@@ -197,6 +199,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- [Hugging Face](https://huggingface.co) for AI model APIs
+- [Ollama](https://ollama.ai) for local AI model deployment
 - [VS Code Extension API](https://code.visualstudio.com/api)
 - Open source contributors and testers

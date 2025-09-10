@@ -1,20 +1,21 @@
 import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
 import {
-    AnalysisResult,
-    ChatCommand,
-    ChatCompletionMessage,
-    ChatContext,
-    ChatMessage,
-    ChatSession,
-    ConversationHistory,
-    FileContext
+  AnalysisResult,
+  ChatCommand,
+  ChatCompletionMessage,
+  ChatContext,
+  ChatMessage,
+  ChatSession,
+  ConversationHistory,
+  FileContext
 } from '@/types';
+import { getFileContentForAnalysis } from '@/utils/fileUtils';
 import * as vscode from 'vscode';
 import { ContextStore } from './ContextStore';
-import { HuggingFaceService } from './HuggingFaceService';
+import { OllamaService } from './OllamaService';
 
 export class ChatService {
-  private hfService: HuggingFaceService;
+  private ollamaService: OllamaService;
   private contextStore: ContextStore;
   private analyzer: MultiFileAnalyzer | undefined;
   private activeSessions: Map<string, ChatSession> = new Map();
@@ -23,11 +24,11 @@ export class ChatService {
   private maxContextWindow: number = 20; // Number of messages to include in context
 
   constructor(
-    hfService: HuggingFaceService, 
+    ollamaService: OllamaService, 
     contextStore: ContextStore, 
     analyzer?: MultiFileAnalyzer
   ) {
-    this.hfService = hfService;
+    this.ollamaService = ollamaService;
     this.contextStore = contextStore;
     this.analyzer = analyzer;
     this.initializeCommands();
@@ -242,7 +243,7 @@ export class ChatService {
     console.log('━'.repeat(60));
 
     try {
-      const analysisResult = await this.hfService.conversationalAnalysis(chatMessages, session.context);
+      const analysisResult = await this.ollamaService.conversationalAnalysis(chatMessages, session.context);
       
       return {
         id: this.generateMessageId(),
@@ -271,11 +272,79 @@ export class ChatService {
       let analysisResult: AnalysisResult | undefined;
       let analysisSource = '';
 
-      // Priority order: 1. args (user provided code), 2. selected text, 3. active file
+      // Enhanced priority order: 1. args (file path or code), 2. selected text, 3. active file
       if (args.trim()) {
-        // Analyze provided code snippet
+        // Check if args is a file path (absolute or relative) or code snippet
+        const argsTrimmed = args.trim();
+        
+        // Try to detect if this is a file path
+        const isLikelyFilePath = (
+          argsTrimmed.includes('/') || 
+          argsTrimmed.includes('\\') ||
+          argsTrimmed.match(/\.[a-zA-Z0-9]+$/) ||
+          argsTrimmed.startsWith('.') ||
+          argsTrimmed.length < 200 // Short strings are more likely to be paths
+        );
+        
+        if (isLikelyFilePath) {
+          console.log(`🔍 Attempting to analyze file path: ${argsTrimmed}`);
+          
+          // Try to read as file path
+          const fileContent = await getFileContentForAnalysis(argsTrimmed);
+          if (fileContent) {
+            analysisSource = `file: ${fileContent.uri.fsPath.split('/').pop()}`;
+            
+            const fileContext: FileContext = {
+              uri: fileContent.uri,
+              content: fileContent.content,
+              language: fileContent.language,
+              lastModified: new Date(),
+              size: fileContent.content.length,
+              hash: this.generateHash(fileContent.content),
+              relationships: []
+            };
+            
+            const aiResponse = await this.ollamaService.analyzeCode(fileContext);
+            
+            // Convert to AnalysisResult format
+            analysisResult = {
+              fileUri: fileContent.uri,
+              language: fileContent.language,
+              summary: aiResponse.summary,
+              suggestions: aiResponse.suggestions,
+              relationships: [],
+              metrics: {
+                linesOfCode: fileContent.content.split('\n').length,
+                complexity: 0,
+                maintainabilityIndex: 0,
+                technicalDebt: 0
+              },
+              timestamp: new Date(),
+              confidence: aiResponse.confidence
+            };
+
+            const contentSource = fileContent.isFromEditor ? '(from editor with unsaved changes)' : '(from file system)';
+            return {
+              id: this.generateMessageId(),
+              type: 'assistant',
+              content: `## Analysis of ${analysisSource} ${contentSource}\n\n${this.formatAnalysisResult(analysisResult)}`,
+              timestamp: new Date(),
+              context: session.context,
+              metadata: {
+                confidence: analysisResult.confidence,
+                fileAnalyzed: analysisResult.fileUri.fsPath,
+                isFromEditor: fileContent.isFromEditor
+              }
+            };
+          } else {
+            // Path didn't work, treat as code snippet
+            console.log(`⚠️ Could not read as file path, treating as code snippet: ${argsTrimmed}`);
+          }
+        }
+        
+        // Treat as code snippet (either because it's not a path or path reading failed)
         analysisSource = 'provided code snippet';
-        const response = await this.hfService.processCommand('analyze', args, session.context);
+        const response = await this.ollamaService.processCommand('analyze', argsTrimmed, session.context);
         return {
           id: this.generateMessageId(),
           type: 'assistant',
@@ -290,9 +359,9 @@ export class ChatService {
           }
         };
       } else if (session.context.selectedText) {
-        // Analyze selected text
+        // Analyze selected text from editor
         analysisSource = 'selected text';
-        const response = await this.hfService.processCommand('analyze', session.context.selectedText, session.context);
+        const response = await this.ollamaService.processCommand('analyze', session.context.selectedText, session.context);
         return {
           id: this.generateMessageId(),
           type: 'assistant',
@@ -307,40 +376,58 @@ export class ChatService {
           }
         };
       } else if (session.context.activeFile) {
-        // Analyze active file
-        analysisSource = session.context.activeFile.split('/').pop() || 'active file';
-        const activeFileUri = vscode.Uri.file(session.context.activeFile); // Convert string back to Uri
-        const fileContext = await this.buildFileContext(activeFileUri, session.context);
-        const aiResponse = await this.hfService.analyzeCode(fileContext);
+        // Analyze active file using smart content reading
+        console.log(`📂 Analyzing active file: ${session.context.activeFile}`);
         
-        // Convert to AnalysisResult format
-        analysisResult = {
-          fileUri: activeFileUri, // Use the Uri object
-          language: fileContext.language,
-          summary: aiResponse.summary,
-          suggestions: aiResponse.suggestions,
-          relationships: [],
-          metrics: {
-            linesOfCode: fileContext.size,
-            complexity: 0,
-            maintainabilityIndex: 0,
-            technicalDebt: 0
-          },
-          timestamp: new Date(),
-          confidence: aiResponse.confidence
-        };
+        const fileContent = await getFileContentForAnalysis(session.context.activeFile);
+        if (fileContent) {
+          analysisSource = fileContent.uri.fsPath.split('/').pop() || 'active file';
+          
+          const fileContext: FileContext = {
+            uri: fileContent.uri,
+            content: fileContent.content,
+            language: fileContent.language,
+            lastModified: new Date(),
+            size: fileContent.content.length,
+            hash: this.generateHash(fileContent.content),
+            relationships: []
+          };
+          
+          const aiResponse = await this.ollamaService.analyzeCode(fileContext);
+          
+          // Convert to AnalysisResult format
+          analysisResult = {
+            fileUri: fileContent.uri,
+            language: fileContent.language,
+            summary: aiResponse.summary,
+            suggestions: aiResponse.suggestions,
+            relationships: [],
+            metrics: {
+              linesOfCode: fileContent.content.split('\n').length,
+              complexity: 0,
+              maintainabilityIndex: 0,
+              technicalDebt: 0
+            },
+            timestamp: new Date(),
+            confidence: aiResponse.confidence
+          };
 
-        return {
-          id: this.generateMessageId(),
-          type: 'assistant',
-          content: this.formatAnalysisResult(analysisResult),
-          timestamp: new Date(),
-          context: session.context,
-          metadata: {
-            confidence: analysisResult.confidence,
-            fileAnalyzed: analysisResult.fileUri.toString()
-          }
-        };
+          const contentSource = fileContent.isFromEditor ? '(including unsaved changes)' : '(from file system)';
+          return {
+            id: this.generateMessageId(),
+            type: 'assistant',
+            content: `## Analysis of ${analysisSource} ${contentSource}\n\n${this.formatAnalysisResult(analysisResult)}`,
+            timestamp: new Date(),
+            context: session.context,
+            metadata: {
+              confidence: analysisResult.confidence,
+              fileAnalyzed: analysisResult.fileUri.fsPath,
+              isFromEditor: fileContent.isFromEditor
+            }
+          };
+        } else {
+          throw new Error(`Could not read active file: ${session.context.activeFile}`);
+        }
       } else {
         // No code to analyze - provide helpful guidance
         return {
@@ -353,13 +440,16 @@ I need some code to analyze! You can:
 1. **Select code** in the editor and then use \`/analyze\`
 2. **Open a file** in the editor and use \`/analyze\`  
 3. **Provide code directly**: \`/analyze your code here\`
+4. **Analyze specific file**: \`/analyze /path/to/file.js\`
 
 **Examples:**
 - \`/analyze\` (analyzes current file or selection)
 - \`/analyze function add(a, b) { return a + b; }\`
+- \`/analyze /Users/user/project/app.js\` (absolute path)
+- \`/analyze src/components/Button.tsx\` (relative path)
 - Select code in editor → \`/analyze\`
 
-💡 **Tip:** Make sure you have a file open in the editor or provide the code you want me to analyze!`,
+💡 **Tip:** I can analyze files from the file system or directly from your editor (including unsaved changes)!`,
           timestamp: new Date(),
           context: session.context,
           metadata: {
@@ -375,7 +465,7 @@ I need some code to analyze! You can:
 
   private async handleSuggestCommand(args: string, session: ChatSession): Promise<ChatMessage> {
     try {
-      const response = await this.hfService.processCommand('suggest', args, session.context);
+      const response = await this.ollamaService.processCommand('suggest', args, session.context);
       
       return {
         id: this.generateMessageId(),
@@ -398,7 +488,7 @@ I need some code to analyze! You can:
   private async handleExplainCommand(args: string, session: ChatSession): Promise<ChatMessage> {
     try {
       const codeToExplain = args.trim() || session.context.selectedText || 'current file';
-      const response = await this.hfService.processCommand('explain', codeToExplain, session.context);
+      const response = await this.ollamaService.processCommand('explain', codeToExplain, session.context);
       
       return {
         id: this.generateMessageId(),
@@ -419,7 +509,7 @@ I need some code to analyze! You can:
 
   private async handleOptimizeCommand(args: string, session: ChatSession): Promise<ChatMessage> {
     try {
-      const response = await this.hfService.processCommand('optimize', args, session.context);
+      const response = await this.ollamaService.processCommand('optimize', args, session.context);
       
       return {
         id: this.generateMessageId(),
@@ -440,7 +530,7 @@ I need some code to analyze! You can:
 
   private async handleDebugCommand(args: string, session: ChatSession): Promise<ChatMessage> {
     try {
-      const response = await this.hfService.processCommand('debug', args, session.context);
+      const response = await this.ollamaService.processCommand('debug', args, session.context);
       
       return {
         id: this.generateMessageId(),
@@ -495,7 +585,7 @@ I need some code to analyze! You can:
         content: msg.content
       }));
 
-      const summary = await this.hfService.generateContextualSummary(chatMessages, session.context);
+      const summary = await this.ollamaService.generateContextualSummary(chatMessages, session.context);
       
       return {
         id: this.generateMessageId(),
@@ -588,7 +678,7 @@ I need some code to analyze! You can:
         content: msg.content
       }));
 
-      return await this.hfService.generateContextualSummary(chatMessages, session.context);
+      return await this.ollamaService.generateContextualSummary(chatMessages, session.context);
     } catch (error) {
       return `Session with ${session.messages.length} messages`;
     }
