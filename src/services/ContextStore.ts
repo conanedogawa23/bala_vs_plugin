@@ -7,7 +7,8 @@ import {
   FileRelationship, 
   AnalysisResult, 
   RelationshipType,
-  WorkspaceSummary 
+  WorkspaceSummary,
+  ConversationHistory 
 } from '@/types';
 
 export class ContextStore {
@@ -374,5 +375,163 @@ export class ContextStore {
       default:
         return [''];
     }
+  }
+
+  // Conversation History Management for Phase 3
+  public async storeConversationHistory(sessionId: string, history: ConversationHistory): Promise<void> {
+    try {
+      const historyDir = path.join(this.storageUri.fsPath, 'conversations');
+      await this.ensureDirectory(historyDir);
+      
+      const filePath = path.join(historyDir, `${sessionId}.json`);
+      const serializedHistory = JSON.stringify(history, (key, value) => {
+        // Handle vscode.Uri serialization
+        if (value && typeof value === 'object' && value.scheme) {
+          return { 
+            $type: 'vscode.Uri',
+            scheme: value.scheme,
+            authority: value.authority,
+            path: value.path,
+            query: value.query,
+            fragment: value.fragment
+          };
+        }
+        return value;
+      }, 2);
+      
+      await fs.writeFile(filePath, serializedHistory);
+      console.log(`Conversation history saved for session: ${sessionId}`);
+    } catch (error) {
+      console.error('Failed to store conversation history:', error);
+      throw error;
+    }
+  }
+
+  public async getConversationHistory(sessionId: string): Promise<ConversationHistory | undefined> {
+    try {
+      const filePath = path.join(this.storageUri.fsPath, 'conversations', `${sessionId}.json`);
+      const content = await fs.readFile(filePath, 'utf8');
+      
+      const history = JSON.parse(content, (key, value) => {
+        // Handle vscode.Uri deserialization
+        if (value && value.$type === 'vscode.Uri') {
+          return vscode.Uri.from({
+            scheme: value.scheme,
+            authority: value.authority,
+            path: value.path,
+            query: value.query,
+            fragment: value.fragment
+          });
+        }
+        return value;
+      }) as ConversationHistory;
+      
+      return history;
+    } catch (error) {
+      // File not found or parsing error - return undefined
+      return undefined;
+    }
+  }
+
+  public async clearConversationHistory(sessionId: string): Promise<void> {
+    try {
+      const filePath = path.join(this.storageUri.fsPath, 'conversations', `${sessionId}.json`);
+      await fs.unlink(filePath);
+      console.log(`Conversation history cleared for session: ${sessionId}`);
+    } catch (error) {
+      // File may not exist - ignore error
+      console.warn(`Could not clear conversation history for session ${sessionId}:`, error);
+    }
+  }
+
+  public async getAllConversationSessions(): Promise<string[]> {
+    try {
+      const historyDir = path.join(this.storageUri.fsPath, 'conversations');
+      const files = await fs.readdir(historyDir);
+      return files
+        .filter(file => file.endsWith('.json'))
+        .map(file => path.basename(file, '.json'));
+    } catch (error) {
+      // Directory may not exist
+      return [];
+    }
+  }
+
+  public async getConversationSummaries(): Promise<Array<{ sessionId: string; title: string; lastUpdated: Date; messageCount: number }>> {
+    try {
+      const sessionIds = await this.getAllConversationSessions();
+      const summaries = [];
+      
+      for (const sessionId of sessionIds) {
+        const history = await this.getConversationHistory(sessionId);
+        if (history) {
+          summaries.push({
+            sessionId,
+            title: this.generateConversationTitle(history),
+            lastUpdated: history.lastUpdated,
+            messageCount: history.messages.length
+          });
+        }
+      }
+      
+      // Sort by last updated, most recent first
+      return summaries.sort((a, b) => b.lastUpdated.getTime() - a.lastUpdated.getTime());
+    } catch (error) {
+      console.error('Failed to get conversation summaries:', error);
+      return [];
+    }
+  }
+
+  public async cleanupOldConversations(retentionDays: number = 30): Promise<void> {
+    try {
+      const sessionIds = await this.getAllConversationSessions();
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+      
+      let cleanedCount = 0;
+      
+      for (const sessionId of sessionIds) {
+        const history = await this.getConversationHistory(sessionId);
+        if (history && history.lastUpdated < cutoffDate) {
+          await this.clearConversationHistory(sessionId);
+          cleanedCount++;
+        }
+      }
+      
+      if (cleanedCount > 0) {
+        console.log(`Cleaned up ${cleanedCount} old conversation sessions`);
+      }
+    } catch (error) {
+      console.error('Failed to cleanup old conversations:', error);
+    }
+  }
+
+  private async ensureDirectory(dirPath: string): Promise<void> {
+    try {
+      await fs.access(dirPath);
+    } catch {
+      await fs.mkdir(dirPath, { recursive: true });
+    }
+  }
+
+  private generateConversationTitle(history: ConversationHistory): string {
+    // Try to generate a meaningful title from the conversation
+    if (history.summary) {
+      return history.summary.length > 50 
+        ? history.summary.substring(0, 47) + '...'
+        : history.summary;
+    }
+    
+    // Fallback to first user message
+    const firstUserMessage = history.messages.find(msg => msg.type === 'user');
+    if (firstUserMessage) {
+      const content = firstUserMessage.content;
+      return content.length > 50 
+        ? content.substring(0, 47) + '...'
+        : content;
+    }
+    
+    // Final fallback
+    return `Conversation ${history.sessionId.substring(0, 8)}`;
   }
 }

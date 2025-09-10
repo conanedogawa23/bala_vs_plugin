@@ -133,3 +133,151 @@ export interface FileContext {
   hash: string;
   relationships: FileRelationship[];
 }
+
+// Chat Panel Types
+export interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: Date;
+  context?: ChatContext;
+  metadata?: ChatMessageMetadata;
+}
+
+export interface ChatContext {
+  activeFile?: vscode.Uri;
+  selectedText?: string;
+  workspaceFiles?: vscode.Uri[];
+  analysisResults?: AnalysisResult[];
+  suggestions?: Suggestion[];
+}
+
+export interface ChatMessageMetadata {
+  tokens?: number;
+  model?: string;
+  confidence?: number;
+  processingTime?: number;
+  error?: string;
+  suggestions?: Suggestion[];
+  fileAnalyzed?: string;
+  relatedFiles?: string[];
+}
+
+export interface ChatSession {
+  id: string;
+  messages: ChatMessage[];
+  context: ChatContext;
+  createdAt: Date;
+  updatedAt: Date;
+  title?: string;
+}
+
+export interface WebviewMessage {
+  type: WebviewMessageType;
+  payload: any;
+  requestId?: string;
+}
+
+export interface ExtensionMessage {
+  type: ExtensionMessageType;
+  payload: any;
+  requestId?: string | undefined;
+}
+
+export enum WebviewMessageType {
+  SEND_MESSAGE = 'sendMessage',
+  REQUEST_CONTEXT = 'requestContext',
+  APPLY_SUGGESTION = 'applySuggestion',
+  ANALYZE_CODE = 'analyzeCode',
+  GET_HISTORY = 'getHistory',
+  CLEAR_HISTORY = 'clearHistory',
+  UPDATE_SETTINGS = 'updateSettings'
+}
+
+export enum ExtensionMessageType {
+  MESSAGE_RESPONSE = 'messageResponse',
+  CONTEXT_UPDATE = 'contextUpdate',
+  SUGGESTION_APPLIED = 'suggestionApplied',
+  ANALYSIS_COMPLETE = 'analysisComplete',
+  HISTORY_UPDATE = 'historyUpdate',
+  ERROR = 'error',
+  TYPING_START = 'typingStart',
+  TYPING_END = 'typingEnd'
+}
+
+export interface ChatPanelState {
+  isVisible: boolean;
+  position?: vscode.ViewColumn | undefined;
+  sessionId?: string;
+  lastActiveFile?: vscode.Uri;
+}
+
+// Enhanced Chat Types for Phase 3
+export interface ChatCompletionMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  name?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ChatCompletionRequest {
+  messages: ChatCompletionMessage[];
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  stream?: boolean;
+  context?: ChatContext;
+}
+
+export interface ChatCompletionResponse {
+  message: ChatCompletionMessage;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  model: string;
+  confidence?: number;
+  suggestions?: Suggestion[];
+}
+
+export interface ConversationHistory {
+  sessionId: string;
+  messages: ChatMessage[];
+  context: ChatContext;
+  summary?: string;
+  createdAt: Date;
+  lastUpdated: Date;
+}
+
+export interface ChatCommand {
+  name: string;
+  description: string;
+  handler: string;
+  parameters?: ChatCommandParameter[];
+}
+
+export interface ChatCommandParameter {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'file' | 'selection';
+  description: string;
+  required?: boolean;
+  default?: any;
+}
+
+export interface ChatAnalysisResult {
+  analysis: string;
+  suggestions: Suggestion[];
+  codeBlocks?: CodeBlock[];
+  relatedFiles?: vscode.Uri[];
+  confidence: number;
+}
+
+export interface CodeBlock {
+  language: string;
+  code: string;
+  startLine?: number;
+  endLine?: number;
+  file?: vscode.Uri;
+  explanation?: string;
+}

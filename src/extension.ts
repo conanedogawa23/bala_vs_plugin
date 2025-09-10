@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
 import { ContextStore } from '@/services/ContextStore';
 import { HuggingFaceService } from '@/services/HuggingFaceService';
+import { ChatPanel } from '@/ui/ChatPanel';
 
 let analyzer: MultiFileAnalyzer | undefined;
 let contextStore: ContextStore | undefined;
@@ -31,7 +32,11 @@ export async function activate(context: vscode.ExtensionContext) {
       await analyzer.analyzeFiles(uris);
     }),
     vscode.commands.registerCommand('balaAnalyzer.openAIChat', async () => {
-      vscode.window.showInformationMessage('AI Chat panel coming soon.');
+      if (!hfService || !contextStore) {
+        vscode.window.showErrorMessage('Bala AI: Services not properly initialized. Please restart the extension.');
+        return;
+      }
+      ChatPanel.createOrShow(context.extensionUri, hfService, contextStore, analyzer);
     }),
     vscode.commands.registerCommand('balaAnalyzer.generateSummary', async () => {
       if (!analyzer) { return; }
@@ -52,7 +57,10 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 }
 
-export function deactivate() {}
+export function deactivate() {
+  // Clean up the chat panel
+  ChatPanel.kill();
+}
 
 async function pickFiles(): Promise<vscode.Uri[]> {
   const files = await vscode.window.showOpenDialog({
