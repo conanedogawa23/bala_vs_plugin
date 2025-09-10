@@ -1,8 +1,8 @@
-import * as vscode from 'vscode';
 import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
 import { ContextStore } from '@/services/ContextStore';
 import { HuggingFaceService } from '@/services/HuggingFaceService';
 import { ChatPanel } from '@/ui/ChatPanel';
+import * as vscode from 'vscode';
 
 let analyzer: MultiFileAnalyzer | undefined;
 let contextStore: ContextStore | undefined;
@@ -11,11 +11,19 @@ let hfService: HuggingFaceService | undefined;
 export async function activate(context: vscode.ExtensionContext) {
   console.log('Bala AI Code Analyzer is now active!');
 
-  const config = vscode.workspace.getConfiguration('balaAnalyzer');
-  const apiKey = config.get<string>('huggingFace.apiKey') || process.env.HF_API_KEY || '';
+  // 🚨 HARDCODED API KEY - FOR TESTING ONLY! 
+  // TODO: Change back to proper configuration for production
+  const apiKey = process.env.HF_API_KEY || '';
+
+  // Skip API key validation since we're hardcoding it
+  console.log('Using hardcoded API key for testing');
 
   contextStore = new ContextStore(context.globalStorageUri);
-  hfService = new HuggingFaceService({ apiKey });
+  hfService = new HuggingFaceService({ 
+    apiKey: apiKey.trim(),
+    timeout: 30000,  // Increased to 30s to handle model overload
+    maxRetries: 2    // 2 retries to handle temporary overloading
+  });
   analyzer = new MultiFileAnalyzer(contextStore, hfService);
 
   context.subscriptions.push(

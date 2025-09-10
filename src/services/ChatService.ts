@@ -1,20 +1,17 @@
-import * as vscode from 'vscode';
-import { 
-  ChatMessage, 
-  ChatSession, 
-  ChatContext, 
-  ChatCompletionMessage, 
-  ChatCompletionRequest,
-  ChatCompletionResponse,
-  ChatAnalysisResult,
-  ChatCommand,
-  ConversationHistory,
-  FileContext,
-  AnalysisResult 
-} from '@/types';
-import { HuggingFaceService } from './HuggingFaceService';
-import { ContextStore } from './ContextStore';
 import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
+import {
+    AnalysisResult,
+    ChatCommand,
+    ChatCompletionMessage,
+    ChatContext,
+    ChatMessage,
+    ChatSession,
+    ConversationHistory,
+    FileContext
+} from '@/types';
+import * as vscode from 'vscode';
+import { ContextStore } from './ContextStore';
+import { HuggingFaceService } from './HuggingFaceService';
 
 export class ChatService {
   private hfService: HuggingFaceService;
@@ -222,6 +219,28 @@ export class ChatService {
       content
     });
 
+    // 🔍 DETAILED CONVERSATION LOGGING
+    console.log('💬 CHAT SERVICE - BUILDING CONVERSATIONAL MESSAGE:');
+    console.log('━'.repeat(60));
+    console.log(`Session ID: ${session.id}`);
+    console.log(`Total session messages: ${session.messages.length}`);
+    console.log(`Recent messages included: ${recentMessages.length}`);
+    console.log(`Final message count for API: ${chatMessages.length}`);
+    console.log(`Current user input: "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`);
+    console.log(`Max context window: ${this.maxContextWindow}`);
+    
+    // Show each message in the conversation
+    chatMessages.forEach((msg, index) => {
+      console.log(`\nConversation Message ${index + 1} (${msg.role}):`);
+      console.log(`  Content length: ${msg.content.length} characters`);
+      console.log(`  Preview: "${msg.content.substring(0, 150)}${msg.content.length > 150 ? '...' : ''}"`);
+    });
+    
+    const totalConversationSize = chatMessages.reduce((total, msg) => total + msg.content.length, 0);
+    console.log(`\nTotal conversation size: ${totalConversationSize} characters`);
+    console.log(`Session context keys: ${Object.keys(session.context).join(', ')}`);
+    console.log('━'.repeat(60));
+
     try {
       const analysisResult = await this.hfService.conversationalAnalysis(chatMessages, session.context);
       
@@ -250,15 +269,53 @@ export class ChatService {
       }
 
       let analysisResult: AnalysisResult | undefined;
+      let analysisSource = '';
 
-      if (session.context.activeFile) {
-        // Analyze specific file
-        const fileContext = await this.buildFileContext(session.context.activeFile, session.context);
+      // Priority order: 1. args (user provided code), 2. selected text, 3. active file
+      if (args.trim()) {
+        // Analyze provided code snippet
+        analysisSource = 'provided code snippet';
+        const response = await this.hfService.processCommand('analyze', args, session.context);
+        return {
+          id: this.generateMessageId(),
+          type: 'assistant',
+          content: response.message.content,
+          timestamp: new Date(),
+          context: session.context,
+          metadata: {
+            tokens: response.usage.total_tokens,
+            model: response.model,
+            confidence: response.confidence || 0.7,
+            fileAnalyzed: 'code snippet'
+          }
+        };
+      } else if (session.context.selectedText) {
+        // Analyze selected text
+        analysisSource = 'selected text';
+        const response = await this.hfService.processCommand('analyze', session.context.selectedText, session.context);
+        return {
+          id: this.generateMessageId(),
+          type: 'assistant',
+          content: `## Analysis of Selected Code\n\n${response.message.content}`,
+          timestamp: new Date(),
+          context: session.context,
+          metadata: {
+            tokens: response.usage.total_tokens,
+            model: response.model,
+            confidence: response.confidence || 0.7,
+            fileAnalyzed: 'selected text'
+          }
+        };
+      } else if (session.context.activeFile) {
+        // Analyze active file
+        analysisSource = session.context.activeFile.split('/').pop() || 'active file';
+        const activeFileUri = vscode.Uri.file(session.context.activeFile); // Convert string back to Uri
+        const fileContext = await this.buildFileContext(activeFileUri, session.context);
         const aiResponse = await this.hfService.analyzeCode(fileContext);
         
         // Convert to AnalysisResult format
         analysisResult = {
-          fileUri: session.context.activeFile,
+          fileUri: activeFileUri, // Use the Uri object
           language: fileContext.language,
           summary: aiResponse.summary,
           suggestions: aiResponse.suggestions,
@@ -272,36 +329,45 @@ export class ChatService {
           timestamp: new Date(),
           confidence: aiResponse.confidence
         };
-      } else if (args.trim()) {
-        // Analyze provided code snippet
-        const response = await this.hfService.processCommand('analyze', args, session.context);
+
         return {
           id: this.generateMessageId(),
           type: 'assistant',
-          content: response.message.content,
+          content: this.formatAnalysisResult(analysisResult),
           timestamp: new Date(),
           context: session.context,
           metadata: {
-            tokens: response.usage.total_tokens,
-            model: response.model,
-            confidence: response.confidence || 0.7
+            confidence: analysisResult.confidence,
+            fileAnalyzed: analysisResult.fileUri.toString()
           }
         };
       } else {
-        throw new Error('No file selected or code provided for analysis');
-      }
+        // No code to analyze - provide helpful guidance
+        return {
+          id: this.generateMessageId(),
+          type: 'assistant',
+          content: `## No Code to Analyze
 
-      return {
-        id: this.generateMessageId(),
-        type: 'assistant',
-        content: this.formatAnalysisResult(analysisResult),
-        timestamp: new Date(),
-        context: session.context,
-        metadata: {
-          confidence: analysisResult.confidence,
-          fileAnalyzed: analysisResult.fileUri.toString()
-        }
-      };
+I need some code to analyze! You can:
+
+1. **Select code** in the editor and then use \`/analyze\`
+2. **Open a file** in the editor and use \`/analyze\`  
+3. **Provide code directly**: \`/analyze your code here\`
+
+**Examples:**
+- \`/analyze\` (analyzes current file or selection)
+- \`/analyze function add(a, b) { return a + b; }\`
+- Select code in editor → \`/analyze\`
+
+💡 **Tip:** Make sure you have a file open in the editor or provide the code you want me to analyze!`,
+          timestamp: new Date(),
+          context: session.context,
+          metadata: {
+            confidence: 1.0,
+            fileAnalyzed: 'none - guidance provided'
+          }
+        };
+      }
     } catch (error) {
       throw new Error(`Analysis failed: ${error}`);
     }
@@ -448,7 +514,7 @@ export class ChatService {
     let contextInfo = '## Current Context\n\n';
 
     if (context.activeFile) {
-      const fileName = context.activeFile.toString().split('/').pop();
+      const fileName = context.activeFile.split('/').pop();
       contextInfo += `**Active File:** ${fileName}\n`;
     }
 
@@ -530,7 +596,7 @@ export class ChatService {
 
   private generateSessionTitle(context: ChatContext): string {
     if (context.activeFile) {
-      const fileName = context.activeFile.toString().split('/').pop();
+      const fileName = context.activeFile.split('/').pop();
       return `Chat about ${fileName}`;
     }
     

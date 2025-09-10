@@ -95,3 +95,4 @@ tmp/
 temp/
 
 .cursor/
+.vscode/

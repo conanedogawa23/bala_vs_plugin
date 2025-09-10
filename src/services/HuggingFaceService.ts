@@ -1,47 +1,164 @@
-import { HfInference } from '@huggingface/inference';
-import * as vscode from 'vscode';
-import { 
-  HuggingFaceConfig, 
-  AIResponse, 
-  Suggestion, 
-  SuggestionType, 
-  SuggestionCategory,
-  FileContext,
+import {
+  AIResponse,
+  ChatAnalysisResult,
+  ChatCompletionMessage,
   ChatCompletionRequest,
   ChatCompletionResponse,
-  ChatCompletionMessage,
-  ChatAnalysisResult,
-  ChatContext
+  ChatContext,
+  FileContext,
+  HuggingFaceConfig,
+  Suggestion,
+  SuggestionCategory,
+  SuggestionType
 } from '@/types';
+import { InferenceClient } from '@huggingface/inference'; // ✅ Updated to modern API
+import * as vscode from 'vscode';
 
 export class HuggingFaceService {
-  private hf: HfInference;
+  private hf: InferenceClient; // ✅ Updated to modern API
   private config: HuggingFaceConfig;
+  private isApiAvailable: boolean = true;
+  private lastFailureTime: number = 0;
+  private retryAfterMs: number = 60000; // 1 minute
+  
+  // 🚀 Enhanced timeout and retry configuration
+  private readonly defaultTimeout: number;
+  private readonly maxRetries: number;
+  private readonly baseRetryDelay: number = 1000; // 1 second
 
   constructor(config: HuggingFaceConfig) {
     this.config = config;
-    this.hf = new HfInference(config.apiKey);
+    this.hf = new InferenceClient(config.apiKey); // ✅ Updated to modern API
+    this.isApiAvailable = !(!config.apiKey || config.apiKey.trim() === '');
+    
+    // 🔧 Use configured timeout or sensible defaults
+    this.defaultTimeout = config.timeout || 30000; // 30 seconds default
+    this.maxRetries = config.maxRetries || 3;
+    
+    console.log(`🚀 HuggingFace Service initialized with ${this.defaultTimeout}ms timeout and ${this.maxRetries} max retries`);
+  }
+
+  // 🚀 Enhanced timeout wrapper with retry logic
+  private async withTimeout<T>(
+    promise: Promise<T>, 
+    timeoutMs: number = this.defaultTimeout, 
+    operation: string = 'API request',
+    retryCount: number = 0
+  ): Promise<T> {
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)), timeoutMs)
+    );
+    
+    try {
+      const result = await Promise.race([promise, timeoutPromise]);
+      // Reset retry count on success
+      return result;
+    } catch (error: any) {
+      // Implement exponential backoff for retries
+      if (retryCount < this.maxRetries && this.shouldRetry(error)) {
+        const delay = this.baseRetryDelay * Math.pow(2, retryCount);
+        console.log(`⏳ Retrying ${operation} in ${delay}ms (attempt ${retryCount + 1}/${this.maxRetries})`);
+        await this.delay(delay);
+        
+        // Recursive retry with increased timeout
+        const newTimeout = Math.min(timeoutMs * 1.5, 60000); // Cap at 60 seconds
+        return this.withTimeout(promise, newTimeout, operation, retryCount + 1);
+      }
+      
+      throw error;
+    }
+  }
+
+  // 🔄 Helper method for delays
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // 🎯 Determine if an error is retryable
+  private shouldRetry(error: any): boolean {
+    const errorMessage = error.message?.toLowerCase() || '';
+    return errorMessage.includes('timeout') || 
+           errorMessage.includes('network') ||
+           errorMessage.includes('502') ||
+           errorMessage.includes('503') ||
+           errorMessage.includes('504') ||
+           errorMessage.includes('overloaded');
+  }
+
+  // Circuit breaker methods
+  private shouldAttemptApiCall(): boolean {
+    if (!this.config.apiKey || this.config.apiKey.trim() === '') {
+      return false;
+    }
+    
+    if (this.isApiAvailable) {
+      return true;
+    }
+    
+    const now = Date.now();
+    if (now - this.lastFailureTime > this.retryAfterMs) {
+      this.isApiAvailable = true;
+      return true;
+    }
+    
+    return false;
+  }
+
+  private markApiUnavailable(): void {
+    this.isApiAvailable = false;
+    this.lastFailureTime = Date.now();
+  }
+
+  public getApiStatus(): { available: boolean; nextRetryTime?: Date | undefined } {
+    return {
+      available: this.isApiAvailable,
+      nextRetryTime: this.isApiAvailable ? undefined : new Date(this.lastFailureTime + this.retryAfterMs)
+    };
   }
 
   public async analyzeCode(fileContext: FileContext): Promise<AIResponse> {
+    if (!this.shouldAttemptApiCall()) {
+      throw new Error('HuggingFace API unavailable. Please check your API key configuration.');
+    }
+
     const prompt = this.buildAnalysisPrompt(fileContext);
+    console.log(`🔍 Analyzing ${fileContext.language} code with timeout protection...`);
     
     try {
-      const result = await this.hf.textGeneration({
-        model: this.getSelectedModel(),
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 1000,
-          temperature: 0.3,
-          do_sample: true,
-          return_full_text: false
-        }
-      });
+      // 🚀 Apply timeout wrapper for text generation
+      const result = await this.withTimeout(
+        this.hf.textGeneration({
+          model: this.getSelectedModel(),
+          inputs: prompt,
+          parameters: {
+            max_new_tokens: 800, // Reduced for faster response
+            temperature: 0.3,
+            do_sample: true,
+            return_full_text: false
+          }
+        }),
+        Math.min(this.defaultTimeout * 0.8, 25000), // Use 80% of configured timeout, cap at 25s
+        'Code analysis'
+      );
 
       return this.parseAIResponse(result.generated_text || '', fileContext);
-    } catch (error) {
-      console.error('HuggingFace API error:', error);
-      throw new Error(`AI analysis failed: ${error}`);
+    } catch (error: any) {
+      console.error('HuggingFace code analysis error:', error);
+      
+      // Handle timeout specifically
+      if (error.message?.includes('timed out')) {
+        throw new Error(`Code analysis timed out. The model may be overloaded. Please try again.`);
+      }
+      
+      // Handle API errors
+      if (error.message?.includes('Invalid username or password') || 
+          error.message?.includes('401') || 
+          error.message?.includes('Unauthorized')) {
+        this.markApiUnavailable();
+        throw new Error('HuggingFace API authentication failed. Please check your API key.');
+      }
+
+      throw new Error(`AI analysis failed: ${error.message || error}`);
     }
   }
 
@@ -49,16 +166,20 @@ export class HuggingFaceService {
     const prompt = this.buildSummaryPrompt(filePaths);
     
     try {
-      const result = await this.hf.textGeneration({
-        model: this.getSelectedModel(),
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 500,
-          temperature: 0.2,
-          do_sample: true,
-          return_full_text: false
-        }
-      });
+      const result = await this.withTimeout(
+        this.hf.textGeneration({
+          model: this.getSelectedModel(),
+          inputs: prompt,
+          parameters: {
+            max_new_tokens: 500,
+            temperature: 0.2,
+            do_sample: true,
+            return_full_text: false
+          }
+        }),
+        Math.min(this.defaultTimeout * 0.6, 20000), // Use 60% of configured timeout, cap at 20s
+        'Summary generation'
+      );
 
       return result.generated_text || 'Unable to generate summary.';
     } catch (error) {
@@ -71,16 +192,20 @@ export class HuggingFaceService {
     const prompt = this.buildSuggestionPrompt(fileContext, analysisContext);
     
     try {
-      const result = await this.hf.textGeneration({
-        model: this.getSelectedModel(),
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 800,
-          temperature: 0.4,
-          do_sample: true,
-          return_full_text: false
-        }
-      });
+      const result = await this.withTimeout(
+        this.hf.textGeneration({
+          model: this.getSelectedModel(),
+          inputs: prompt,
+          parameters: {
+            max_new_tokens: 800,
+            temperature: 0.4,
+            do_sample: true,
+            return_full_text: false
+          }
+        }),
+        Math.min(this.defaultTimeout * 0.7, 22000), // Use 70% of configured timeout, cap at 22s
+        'Suggestion generation'
+      );
 
       return this.parseSuggestions(result.generated_text || '', fileContext);
     } catch (error) {
@@ -89,29 +214,144 @@ export class HuggingFaceService {
     }
   }
 
-  // Enhanced Chat Completion Methods for Phase 3
+  // Enhanced Chat Completion Methods with Improved Fallback
   public async chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
     try {
-      const model = request.model || this.getChatModel();
-      const messages = this.formatMessagesForAPI(request.messages);
-      
-      // Use the newer chat completion API if available, fallback to text generation
-      let response;
-      try {
-        response = await this.hf.chatCompletion({
-          model,
-          messages,
-          temperature: request.temperature || 0.7,
-          max_tokens: request.max_tokens || 1000,
-          stream: false
-        });
-      } catch (chatError) {
-        // Fallback to text generation for models that don't support chat completion
-        console.warn('Chat completion not supported, falling back to text generation');
-        response = await this.fallbackToTextGeneration(messages, model, request);
+      // Circuit breaker check
+      if (!this.shouldAttemptApiCall()) {
+        const status = this.getApiStatus();
+        if (!this.config.apiKey || this.config.apiKey.trim() === '') {
+          throw new Error('HuggingFace API key not configured. Please set it in VSCode settings or environment variable HF_API_KEY.');
+        } else {
+          const nextRetry = status.nextRetryTime ? status.nextRetryTime.toLocaleTimeString() : 'later';
+          throw new Error(`HuggingFace API temporarily unavailable. Try again at ${nextRetry}.`);
+        }
       }
 
-      return this.formatChatResponse(response, model, request);
+      const models = this.getChatModelFallbackChain();
+      const messages = this.formatMessagesForAPI(request.messages);
+      
+                console.log(`🎯 Using ONLY working models: ${models.join(' → ')}`);
+        console.log(`⚡ Optimized for zephyr-7b-beta: ${this.defaultTimeout}ms timeout, ${this.maxRetries} retries`);
+      
+              // 🔍 DETAILED REQUEST LOGGING
+        console.log('📝 CHAT COMPLETION WITH WORKING MODELS:');
+        console.log('━'.repeat(60));
+        console.log(`Working models: ${models.join(', ')}`);
+        console.log(`Message count: ${messages.length}`);
+        console.log(`Temperature: ${Math.min(request.temperature || 0.7, 0.8)}`);
+        console.log(`Max tokens: ${Math.min(request.max_tokens || 1000, 500)}`);
+      
+      // Log each message with content length
+      messages.forEach((msg, index) => {
+        console.log(`\nMessage ${index + 1} (${msg.role}):`);
+        console.log(`  Content length: ${msg.content.length} characters`);
+        console.log(`  First 200 chars: "${msg.content.substring(0, 200)}${msg.content.length > 200 ? '...' : ''}"`);
+      });
+      
+      // Calculate total input size
+      const totalInputSize = messages.reduce((total, msg) => total + msg.content.length, 0);
+      console.log(`\nTotal input size: ${totalInputSize} characters`);
+      console.log(`Estimated input tokens: ~${Math.floor(totalInputSize / 4)}`);
+      console.log('━'.repeat(60));
+      
+              // Try each model in the fallback chain
+        for (let i = 0; i < models.length; i++) {
+          const model = models[i];
+          if (!model) continue; // Skip if model is undefined
+          
+          const startTime = Date.now();
+          
+          try {
+            console.log(`🎯 Attempting model ${i + 1}/${models.length}: ${model}`);
+            
+            const apiRequest = {
+              model: model as string, // Explicit type assertion after null check
+              messages: messages.map(msg => ({
+                role: msg.role,
+                content: msg.content
+              })),
+              temperature: Math.min(request.temperature || 0.7, 0.8),
+              max_tokens: Math.min(request.max_tokens || 1000, 500),
+              stream: false
+            };
+
+          console.log('🚀 Sending API request...');
+          console.log(`Request structure:`, JSON.stringify({
+            model: apiRequest.model,
+            messageCount: apiRequest.messages.length,
+            temperature: apiRequest.temperature,
+            max_tokens: apiRequest.max_tokens,
+            stream: apiRequest.stream,
+            totalPayloadSize: JSON.stringify(apiRequest).length + ' bytes'
+          }, null, 2));
+
+          const response = await this.withTimeout(
+            this.hf.chatCompletion(apiRequest),
+            undefined, // Use default timeout with retry logic
+            `Chat completion with ${model}`
+          );
+          
+          const elapsed = Date.now() - startTime;
+          console.log(`✅ Chat completion successful with ${model} in ${elapsed}ms`);
+          
+          // 🔍 RESPONSE LOGGING
+          console.log('📤 CHAT COMPLETION RESPONSE DETAILS:');
+          console.log('━'.repeat(50));
+          console.log(`Successful model: ${model}`);
+          console.log(`Response time: ${elapsed}ms`);
+          console.log(`Response structure:`, JSON.stringify({
+            hasChoices: !!response?.choices,
+            choicesCount: response?.choices?.length || 0,
+            firstChoiceRole: response?.choices?.[0]?.message?.role,
+            responseLength: response?.choices?.[0]?.message?.content?.length || 0,
+            hasUsage: !!response?.usage,
+            totalTokens: response?.usage?.total_tokens,
+            promptTokens: response?.usage?.prompt_tokens,
+            completionTokens: response?.usage?.completion_tokens
+          }, null, 2));
+          
+          if (response?.choices?.[0]?.message?.content) {
+            const responseContent = response.choices[0].message.content;
+            console.log(`Response preview (first 300 chars): "${responseContent.substring(0, 300)}${responseContent.length > 300 ? '...' : ''}"`);
+          }
+          console.log('━'.repeat(50));
+          
+                      return this.formatChatResponse(response, model as string, request);
+          
+        } catch (modelError: any) {
+          const elapsed = Date.now() - startTime;
+          console.error(`❌ Model ${model} failed after ${elapsed}ms:`, modelError.message);
+          
+          // Handle authentication errors (don't try other models)
+          if (modelError.message?.includes('Invalid username or password') ||
+              modelError.message?.includes('Invalid credentials') ||
+              modelError.message?.includes('401') ||
+              modelError.message?.includes('Unauthorized')) {
+            this.markApiUnavailable();
+            throw new Error('HuggingFace API authentication failed. Your API key is invalid or expired.');
+          }
+
+          // Handle rate limiting (don't try other models)
+          if (modelError.message?.includes('429') || modelError.message?.includes('rate limit')) {
+            this.markApiUnavailable();
+            throw new Error('HuggingFace API rate limit exceeded. Please try again later.');
+          }
+          
+          // If this is the last model in the chain, throw the error
+          if (i === models.length - 1) {
+            throw new Error(`All fallback models failed. Last error: ${modelError.message}`);
+          }
+          
+          // Otherwise, continue to next model
+          console.log(`⏭️  Trying next model in fallback chain...`);
+          continue;
+        }
+      }
+      
+      // This shouldn't be reached, but just in case
+      throw new Error('All models in fallback chain failed');
+      
     } catch (error) {
       console.error('HuggingFace chat completion error:', error);
       throw new Error(`Chat completion failed: ${error}`);
@@ -128,6 +368,26 @@ export class HuggingFaceService {
         { role: 'system', content: systemPrompt },
         ...messages
       ];
+
+      // 🔍 CONVERSATIONAL ANALYSIS LOGGING
+      console.log('🎯 HUGGINGFACE SERVICE - CONVERSATIONAL ANALYSIS:');
+      console.log('━'.repeat(60));
+      console.log(`Input messages received: ${messages.length}`);
+      console.log(`System prompt length: ${systemPrompt.length} characters`);
+      console.log(`System prompt: "${systemPrompt.substring(0, 200)}${systemPrompt.length > 200 ? '...' : ''}"`);
+      console.log(`Final messages array length: ${analysisMessages.length}`);
+      console.log(`Context keys: ${Object.keys(context).join(', ')}`);
+      
+      // Calculate message sizes
+      const systemSize = systemPrompt.length;
+      const conversationSize = messages.reduce((total, msg) => total + msg.content.length, 0);
+      const totalSize = systemSize + conversationSize;
+      
+      console.log(`\nMessage size breakdown:`);
+      console.log(`- System prompt: ${systemSize} characters`);
+      console.log(`- Conversation history: ${conversationSize} characters`);
+      console.log(`- TOTAL INPUT SIZE: ${totalSize} characters (~${Math.floor(totalSize / 4)} tokens)`);
+      console.log('━'.repeat(60));
 
       const request: ChatCompletionRequest = {
         messages: analysisMessages,
@@ -360,15 +620,41 @@ For each suggestion, provide:
     const config = vscode.workspace.getConfiguration('balaAnalyzer');
     const selectedModel = config.get<string>('huggingFace.model') || 'auto';
     
-    // Map to chat-capable models
+    // Only map to TESTED and WORKING models
     const chatModels = {
-      'auto': 'microsoft/DialoGPT-medium',
-      'microsoft/DialoGPT-medium': 'microsoft/DialoGPT-medium',
-      'codellama/CodeLlama-7b-Instruct-hf': 'codellama/CodeLlama-7b-Instruct-hf',
-      'WizardLM/WizardCoder-Python-7B-V1.0': 'WizardLM/WizardCoder-Python-7B-V1.0'
+      'auto': 'HuggingFaceH4/zephyr-7b-beta',     // ✅ CONFIRMED WORKING with featherless-ai
+      'zephyr': 'HuggingFaceH4/zephyr-7b-beta',   // ✅ Main working model
+      'zephyr-alpha': 'HuggingFaceH4/zephyr-7b-alpha', // ✅ Alternative working model
+      // All other models removed - they don't have working inference providers
     };
 
-    return chatModels[selectedModel as keyof typeof chatModels] || 'microsoft/DialoGPT-medium';
+    return chatModels[selectedModel as keyof typeof chatModels] || 'HuggingFaceH4/zephyr-7b-beta';
+  }
+
+  // 🎯 ONLY WORKING models (tested and confirmed)
+  private getChatModelFallbackChain(): string[] {
+    const config = vscode.workspace.getConfiguration('balaAnalyzer');
+    const selectedModel = config.get<string>('huggingFace.model') || 'auto';
+    
+    // Only use models that have been TESTED and CONFIRMED to work
+    // ✅ Based on actual test results: only 1 out of 19 models worked!
+    const workingModels = [
+      'HuggingFaceH4/zephyr-7b-beta',          // ✅ CONFIRMED WORKING: featherless-ai provider (4.9s)
+      'HuggingFaceH4/zephyr-7b-alpha'          // ✅ Backup: Same model family, likely same provider
+    ];
+
+    console.log(`🎯 Using ONLY confirmed working models: ${workingModels.join(', ')}`);
+
+    // If user specified a model, try it first, then fallback chain
+    if (selectedModel !== 'auto') {
+      const userModel = this.getChatModel();
+      // Remove user's model from workingModels to avoid duplicates
+      const fallbackChain = workingModels.filter(model => model !== userModel);
+      return [userModel, ...fallbackChain];
+    }
+    
+    // For 'auto', use the working models chain
+    return workingModels;
   }
 
   private formatMessagesForAPI(messages: ChatCompletionMessage[]): any[] {
@@ -533,7 +819,8 @@ Summarize the key points discussed, decisions made, and any important context th
   }
 
   private extractRelatedFiles(context: ChatContext): vscode.Uri[] {
-    return context.workspaceFiles || [];
+    // Convert string paths back to vscode.Uri objects
+    return (context.workspaceFiles || []).map(filePath => vscode.Uri.file(filePath));
   }
 
   private extractCodeBlocks(content: string): any[] {

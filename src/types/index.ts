@@ -145,9 +145,9 @@ export interface ChatMessage {
 }
 
 export interface ChatContext {
-  activeFile?: vscode.Uri;
+  activeFile?: string;  // Changed from vscode.Uri to string for webview compatibility
   selectedText?: string;
-  workspaceFiles?: vscode.Uri[];
+  workspaceFiles?: string[];  // Changed from vscode.Uri[] to string[] for webview compatibility
   analysisResults?: AnalysisResult[];
   suggestions?: Suggestion[];
 }

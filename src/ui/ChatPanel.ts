@@ -1,19 +1,18 @@
-import * as vscode from 'vscode';
-import * as path from 'path';
-import { 
-  ChatMessage, 
-  ChatSession, 
-  ChatContext, 
-  ChatPanelState, 
-  WebviewMessage, 
-  ExtensionMessage,
-  WebviewMessageType,
-  ExtensionMessageType 
-} from '@/types';
-import { HuggingFaceService } from '@/services/HuggingFaceService';
-import { ContextStore } from '@/services/ContextStore';
-import { ChatService } from '@/services/ChatService';
 import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
+import { ChatService } from '@/services/ChatService';
+import { ContextStore } from '@/services/ContextStore';
+import { HuggingFaceService } from '@/services/HuggingFaceService';
+import {
+    ChatContext,
+    ChatMessage,
+    ChatPanelState,
+    ChatSession,
+    ExtensionMessage,
+    ExtensionMessageType,
+    WebviewMessage,
+    WebviewMessageType
+} from '@/types';
+import * as vscode from 'vscode';
 
 export class ChatPanel {
   public static currentPanel: ChatPanel | undefined;
@@ -190,7 +189,7 @@ export class ChatPanel {
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}'; style-src ${webview.cspSource} 'unsafe-inline';">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link href="${styleUri}" rel="stylesheet">
         <title>Bala AI Assistant</title>
@@ -464,16 +463,17 @@ export class ChatPanel {
     const context: ChatContext = {};
 
     if (activeEditor) {
-      context.activeFile = activeEditor.document.uri;
+      // Convert Uri to string for webview compatibility
+      context.activeFile = activeEditor.document.uri.fsPath;
       
       if (activeEditor.selection && !activeEditor.selection.isEmpty) {
         context.selectedText = activeEditor.document.getText(activeEditor.selection);
       }
     }
 
-    // Add workspace files
+    // Add workspace files - also convert Uri objects to strings
     if (vscode.workspace.workspaceFolders) {
-      context.workspaceFiles = vscode.workspace.workspaceFolders.map(folder => folder.uri);
+      context.workspaceFiles = vscode.workspace.workspaceFolders.map(folder => folder.uri.fsPath);
     }
 
     return context;

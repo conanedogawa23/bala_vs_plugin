@@ -186,7 +186,7 @@
           "type": "number",
           "default": 0.7,
           "minimum": 0.1,
-          "maximum": 1.0,
+          "maximum": 1,
           "description": "Minimum confidence threshold for AI suggestions"
         },
         "balaAnalyzer.cache.enabled": {
@@ -362,7 +362,7 @@
     "webpack-cli": "^5.1.0"
   },
   "dependencies": {
-    "@huggingface/inference": "^2.6.4",
+    "@huggingface/inference": "^4.7.1",
     "axios": "^1.6.0",
     "cheerio": "^1.0.0-rc.12",
     "lodash": "^4.17.21",
@@ -371,5 +371,6 @@
     "winston": "^3.10.0"
   },
   "extensionDependencies": [],
-  "bundledDependencies": []
+  "bundledDependencies": [],
+  "bundleDependencies": []
 }
