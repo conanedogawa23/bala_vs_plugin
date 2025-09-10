@@ -1,0 +1,375 @@
+{
+  "name": "bala-ai-code-analyzer",
+  "displayName": "Bala AI Code Analyzer",
+  "description": "AI-powered VSCode extension for multi-file workspace analysis with context retention and Hugging Face integration",
+  "version": "1.0.0",
+  "publisher": "bala-dev",
+  "engines": {
+    "vscode": "^1.74.0",
+    "node": ">=16.0.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Machine Learning",
+    "Snippets"
+  ],
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "icon": "resources/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:conanedogawa23/bala_vs_plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/conanedogawa23/bala_vs_plugin/issues"
+  },
+  "homepage": "https://github.com/conanedogawa23/bala_vs_plugin#readme",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "balaAnalyzer.analyzeWorkspace",
+        "title": "🤖 Analyze Entire Workspace",
+        "category": "Bala AI"
+      },
+      {
+        "command": "balaAnalyzer.analyzeSelectedFiles",
+        "title": "📁 Analyze Selected Files",
+        "category": "Bala AI"
+      },
+      {
+        "command": "balaAnalyzer.openAIChat",
+        "title": "💬 Open AI Assistant",
+        "category": "Bala AI"
+      },
+      {
+        "command": "balaAnalyzer.generateSummary",
+        "title": "📄 Generate Code Summary",
+        "category": "Bala AI"
+      },
+      {
+        "command": "balaAnalyzer.applyAISuggestions",
+        "title": "✨ Apply AI Suggestions",
+        "category": "Bala AI"
+      },
+      {
+        "command": "balaAnalyzer.clearCache",
+        "title": "🗑️ Clear Analysis Cache",
+        "category": "Bala AI"
+      },
+      {
+        "command": "balaAnalyzer.exportReport",
+        "title": "📊 Export Analysis Report",
+        "category": "Bala AI"
+      },
+      {
+        "command": "balaAnalyzer.configure",
+        "title": "⚙️ Configure Analyzer",
+        "category": "Bala AI"
+      }
+    ],
+    "configuration": {
+      "title": "Bala AI Code Analyzer",
+      "properties": {
+        "balaAnalyzer.huggingFace.apiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Your Hugging Face API key. Get yours from [Hugging Face Settings](https://huggingface.co/settings/tokens)"
+        },
+        "balaAnalyzer.huggingFace.model": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "microsoft/codebert-base",
+            "microsoft/DialoGPT-medium",
+            "codellama/CodeLlama-7b-Instruct-hf",
+            "WizardLM/WizardCoder-Python-7B-V1.0"
+          ],
+          "enumDescriptions": [
+            "Automatically select the best model for each analysis type",
+            "Use CodeBERT for general code analysis",
+            "Use DialoGPT for conversational code review",
+            "Use CodeLlama for code generation and completion",
+            "Use WizardCoder for Python-specific analysis"
+          ],
+          "default": "auto",
+          "description": "AI model to use for code analysis"
+        },
+        "balaAnalyzer.analysis.maxFileSize": {
+          "type": "number",
+          "default": 2097152,
+          "minimum": 512000,
+          "maximum": 10485760,
+          "description": "Maximum file size for analysis in bytes (default: 2MB)"
+        },
+        "balaAnalyzer.analysis.timeout": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 15000,
+          "maximum": 300000,
+          "description": "Analysis timeout in milliseconds"
+        },
+        "balaAnalyzer.analysis.maxConcurrentFiles": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Maximum number of files to analyze concurrently"
+        },
+        "balaAnalyzer.analysis.includeFileTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "*.js",
+            "*.ts",
+            "*.jsx",
+            "*.tsx",
+            "*.py",
+            "*.java",
+            "*.cs",
+            "*.cpp",
+            "*.c",
+            "*.php",
+            "*.go",
+            "*.rs",
+            "*.rb",
+            "*.swift",
+            "*.kt"
+          ],
+          "description": "File patterns to include in analysis"
+        },
+        "balaAnalyzer.analysis.excludePatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/build/**",
+            "**/.git/**",
+            "**/coverage/**",
+            "**/*.min.js",
+            "**/*.bundle.js"
+          ],
+          "description": "File patterns to exclude from analysis"
+        },
+        "balaAnalyzer.context.retentionDays": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 365,
+          "description": "Number of days to retain analysis context"
+        },
+        "balaAnalyzer.context.maxRelationships": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 10000,
+          "description": "Maximum number of inter-file relationships to track"
+        },
+        "balaAnalyzer.ai.enableSuggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable AI-powered code improvement suggestions"
+        },
+        "balaAnalyzer.ai.confidenceThreshold": {
+          "type": "number",
+          "default": 0.7,
+          "minimum": 0.1,
+          "maximum": 1.0,
+          "description": "Minimum confidence threshold for AI suggestions"
+        },
+        "balaAnalyzer.cache.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable caching of analysis results"
+        },
+        "balaAnalyzer.cache.maxSizeMB": {
+          "type": "number",
+          "default": 100,
+          "minimum": 10,
+          "maximum": 1000,
+          "description": "Maximum cache size in megabytes"
+        },
+        "balaAnalyzer.privacy.enableTelemetry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable anonymous usage telemetry"
+        },
+        "balaAnalyzer.privacy.localProcessing": {
+          "type": "boolean",
+          "default": false,
+          "description": "Process sensitive data locally when possible"
+        },
+        "balaAnalyzer.ui.theme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "dark",
+            "light"
+          ],
+          "default": "auto",
+          "description": "UI theme for the analyzer panels"
+        },
+        "balaAnalyzer.debug.enableLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable detailed debug logging"
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "balaAnalyzerView",
+          "name": "Bala AI Analyzer",
+          "icon": "$(robot)",
+          "contextualTitle": "AI Code Analyzer"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "bala-analyzer",
+          "title": "Bala AI Analyzer",
+          "icon": "$(robot)"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "balaAnalyzer.openAIChat",
+          "when": "view == balaAnalyzerView",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "balaAnalyzer.analyzeSelectedFiles",
+          "when": "editorTextFocus",
+          "group": "7_modification"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "balaAnalyzer.analyzeSelectedFiles",
+          "when": "explorerResourceIsFolder || resourceExtname =~ /\\\\.(js|ts|py|java|cs|cpp|c|php|go|rs|rb|swift|kt|jsx|tsx)$/",
+          "group": "7_modification"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "balaAnalyzer.analyzeWorkspace"
+        },
+        {
+          "command": "balaAnalyzer.analyzeSelectedFiles"
+        },
+        {
+          "command": "balaAnalyzer.openAIChat"
+        },
+        {
+          "command": "balaAnalyzer.generateSummary"
+        },
+        {
+          "command": "balaAnalyzer.applyAISuggestions",
+          "when": "balaAnalyzer.hasSuggestions"
+        },
+        {
+          "command": "balaAnalyzer.clearCache"
+        },
+        {
+          "command": "balaAnalyzer.exportReport",
+          "when": "balaAnalyzer.hasAnalysisResults"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "balaAnalyzer.analyzeWorkspace",
+        "key": "ctrl+alt+shift+a",
+        "mac": "cmd+alt+shift+a"
+      },
+      {
+        "command": "balaAnalyzer.analyzeSelectedFiles",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "balaAnalyzer.openAIChat",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c"
+      },
+      {
+        "command": "balaAnalyzer.generateSummary",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "webpack --mode production",
+    "compile": "tsc -p ./",
+    "watch": "webpack --mode development --watch",
+    "watch-ts": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "lint:fix": "eslint src --ext ts --fix",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "security:audit": "npm audit",
+    "security:fix": "npm audit fix",
+    "clean": "rimraf dist out *.vsix",
+    "install:all": "npm install",
+    "rebuild": "npm run clean && npm install && npm run build",
+    "dev": "npm run compile && npm run watch",
+    "build:prod": "node scripts/build.js"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^18.0.0",
+    "@types/uuid": "^9.0.0",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/test-electron": "^2.3.0",
+    "@vscode/vsce": "^3.2.1",
+    "eslint": "^8.45.0",
+    "eslint-plugin-security": "^3.0.1",
+    "jest": "^29.6.0",
+    "prettier": "^3.0.0",
+    "rimraf": "^5.0.0",
+    "ts-jest": "^29.1.0",
+    "ts-loader": "^9.4.0",
+    "typescript": "^5.1.0",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.0"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^2.6.4",
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "lodash": "^4.17.21",
+    "p-limit": "^4.0.0",
+    "uuid": "^9.0.0",
+    "winston": "^3.10.0"
+  },
+  "extensionDependencies": [],
+  "bundledDependencies": []
+}
