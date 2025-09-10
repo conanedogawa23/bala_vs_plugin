@@ -93,3 +93,5 @@ test-resources/
 # Temporary folders
 tmp/
 temp/
+
+.cursor/
