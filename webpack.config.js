@@ -8,7 +8,7 @@ const webpack = require('webpack');
 /**@type {import('webpack').Configuration}*/
 const config = {
   target: 'node', // vscode extensions run in a Node.js-context
-  mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
+  mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
 
   entry: './src/extension.ts', // the entry point of this extension, 📖 -> https://webpack.js.org/configuration/entry-context/
   output: {
@@ -50,11 +50,6 @@ const config = {
       }
     ]
   },
-  plugins: [
-    new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
-    })
-  ],
   devtool: 'nosources-source-map',
   infrastructureLogging: {
     level: "log", // enables logging required for problem matchers

@@ -18,11 +18,10 @@
     "color": "#1e1e1e",
     "theme": "dark"
   },
-  "icon": "resources/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git@github.com:conanedogawa23/bala_vs_plugin.git"
+    "url": "https://github.com/conanedogawa23/bala_vs_plugin.git"
   },
   "bugs": {
     "url": "https://github.com/conanedogawa23/bala_vs_plugin/issues"
@@ -321,7 +320,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run build",
-    "build": "webpack --mode production",
+    "build": "NODE_ENV=production webpack --mode production",
     "compile": "tsc -p ./",
     "watch": "webpack --mode development --watch",
     "watch-ts": "tsc -watch -p ./",
