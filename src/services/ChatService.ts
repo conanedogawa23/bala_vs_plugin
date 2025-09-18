@@ -289,22 +289,28 @@ export class ChatService {
         if (isLikelyFilePath) {
           console.log(`🔍 Attempting to analyze file path: ${argsTrimmed}`);
           
-          // Try to read as file path
-          const fileContent = await getFileContentForAnalysis(argsTrimmed);
-          if (fileContent) {
-            analysisSource = `file: ${fileContent.uri.fsPath.split('/').pop()}`;
-            
-            const fileContext: FileContext = {
-              uri: fileContent.uri,
-              content: fileContent.content,
-              language: fileContent.language,
-              lastModified: new Date(),
-              size: fileContent.content.length,
-              hash: this.generateHash(fileContent.content),
-              relationships: []
-            };
-            
-            const aiResponse = await this.ollamaService.analyzeCode(fileContext);
+        // Try to read as file path
+        const fileContent = await getFileContentForAnalysis(argsTrimmed);
+        if (fileContent) {
+          analysisSource = `file: ${fileContent.uri.fsPath.split('/').pop()}`;
+          
+          const fileContext: FileContext = {
+            uri: fileContent.uri,
+            content: fileContent.content,
+            language: fileContent.language,
+            lastModified: new Date(),
+            size: fileContent.content.length,
+            hash: this.generateHash(fileContent.content),
+            relationships: []
+          };
+          
+          // Check for large files and provide warnings
+          const sizeWarning = this.getFileSizeWarning(fileContext);
+          if (sizeWarning) {
+            console.log(`⚠️ Large file warning: ${sizeWarning}`);
+          }
+          
+          const aiResponse = await this.ollamaService.analyzeCode(fileContext);
             
             // Convert to AnalysisResult format
             analysisResult = {
@@ -393,6 +399,12 @@ export class ChatService {
             relationships: []
           };
           
+          // Check for large files and provide warnings
+          const sizeWarning = this.getFileSizeWarning(fileContext);
+          if (sizeWarning) {
+            console.log(`⚠️ Large file warning: ${sizeWarning}`);
+          }
+          
           const aiResponse = await this.ollamaService.analyzeCode(fileContext);
           
           // Convert to AnalysisResult format
@@ -459,7 +471,21 @@ I need some code to analyze! You can:
         };
       }
     } catch (error) {
-      throw new Error(`Analysis failed: ${error}`);
+      // Enhanced error handling with specific guidance
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('timed out')) {
+        // Extract timeout suggestions if available
+        const suggestions = errorMessage.includes('Suggestions:') 
+          ? errorMessage.split('Suggestions:')[1] 
+          : '';
+        
+        throw new Error(`Analysis failed: ${errorMessage}${suggestions ? '\n\n' + suggestions : ''}`);
+      } else if (errorMessage.includes('Cannot connect')) {
+        throw new Error(`Analysis failed: ${errorMessage}\n\n💡 Make sure Ollama is running: 'ollama serve'`);
+      } else {
+        throw new Error(`Analysis failed: ${errorMessage}`);
+      }
     }
   }
 
@@ -778,5 +804,22 @@ I need some code to analyze! You can:
 
   public async getAllSessions(): Promise<ChatSession[]> {
     return Array.from(this.activeSessions.values());
+  }
+
+  // Helper method to provide file size warnings
+  private getFileSizeWarning(fileContext: FileContext): string | null {
+    const size = fileContext.size;
+    const lines = fileContext.content.split('\n').length;
+    
+    if (size > 50000 || lines > 1000) {
+      const timeEstimate = size > 100000 ? '2-3 minutes' : '1-2 minutes';
+      return `Large file detected (${size} bytes, ${lines} lines). Analysis may take ${timeEstimate}. Consider analyzing smaller sections for faster results.`;
+    }
+    
+    if (size > 20000 || lines > 500) {
+      return `Medium-sized file detected (${size} bytes, ${lines} lines). Analysis may take 30-60 seconds.`;
+    }
+    
+    return null;
   }
 }

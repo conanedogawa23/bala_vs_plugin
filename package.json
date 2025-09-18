@@ -115,6 +115,13 @@
           "maximum": 300000,
           "description": "Analysis timeout in milliseconds"
         },
+        "balaAnalyzer.analysis.timeoutMultiplier": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.5,
+          "maximum": 3.0,
+          "description": "Multiplier for dynamic timeout calculation based on file size and complexity"
+        },
         "balaAnalyzer.analysis.maxConcurrentFiles": {
           "type": "number",
           "default": 5,

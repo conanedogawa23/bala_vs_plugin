@@ -1,15 +1,15 @@
 import {
-    AIResponse,
-    ChatAnalysisResult,
-    ChatCompletionMessage,
-    ChatCompletionRequest,
-    ChatCompletionResponse,
-    ChatContext,
-    FileContext,
-    OllamaConfig,
-    Suggestion,
-    SuggestionCategory,
-    SuggestionType
+  AIResponse,
+  ChatAnalysisResult,
+  ChatCompletionMessage,
+  ChatCompletionRequest,
+  ChatCompletionResponse,
+  ChatContext,
+  FileContext,
+  OllamaConfig,
+  Suggestion,
+  SuggestionCategory,
+  SuggestionType
 } from '@/types';
 import OpenAI from 'openai';
 import * as vscode from 'vscode';
@@ -33,14 +33,14 @@ export class OllamaService {
     this.client = new OpenAI({
       baseURL: config.baseURL || 'http://localhost:11434/v1',
       apiKey: config.apiKey || 'ollama', // Ollama doesn't require a real API key
-      timeout: config.timeout || 30000,
+      timeout: config.timeout || 60000, // Increased to 60 seconds
     });
     
     this.isApiAvailable = true;
     
-    // Use configured timeout or sensible defaults
-    this.defaultTimeout = config.timeout || 30000; // 30 seconds default
-    this.maxRetries = config.maxRetries || 3;
+    // Use configured timeout or sensible defaults - increased timeouts
+    this.defaultTimeout = config.timeout || 60000; // 60 seconds default (was 30)
+    this.maxRetries = config.maxRetries || 2; // Reduced retries to avoid long waits
     
     console.log(`🚀 Ollama Service initialized with ${this.defaultTimeout}ms timeout and ${this.maxRetries} max retries`);
   }
@@ -83,12 +83,48 @@ export class OllamaService {
   // Determine if an error is retryable
   private shouldRetry(error: any): boolean {
     const errorMessage = error.message?.toLowerCase() || '';
-    return errorMessage.includes('timeout') || 
+    // Don't retry timeouts as they're likely due to file size/complexity
+    return !errorMessage.includes('timed out') && (
            errorMessage.includes('network') ||
            errorMessage.includes('econnrefused') ||
            errorMessage.includes('502') ||
            errorMessage.includes('503') ||
-           errorMessage.includes('504');
+           errorMessage.includes('504'));
+  }
+
+  // Calculate dynamic timeout based on file characteristics
+  private calculateAnalysisTimeout(fileContext: FileContext): number {
+    const baseTimeout = 30000; // 30 seconds base
+    const sizeMultiplier = Math.min(fileContext.size / 1000, 10); // Max 10x multiplier for very large files
+    const lineCount = fileContext.content.split('\n').length;
+    const lineMultiplier = Math.min(lineCount / 100, 5); // Max 5x multiplier for line count
+    
+    // Get user configuration for timeout multiplier
+    const config = vscode.workspace.getConfiguration('balaAnalyzer');
+    const timeoutMultiplier = config.get<number>('analysis.timeoutMultiplier') || 1;
+    
+    const calculatedTimeout = baseTimeout * (1 + sizeMultiplier * 0.1 + lineMultiplier * 0.1) * timeoutMultiplier;
+    
+    // Cap at 2 minutes to prevent extremely long waits
+    return Math.min(calculatedTimeout, 120000);
+  }
+
+  // Provide helpful suggestions when timeouts occur
+  private getTimeoutSuggestions(fileContext: FileContext): string {
+    const suggestions = [];
+    
+    if (fileContext.size > 10000) {
+      suggestions.push("Try analyzing a smaller code section by selecting specific functions or classes");
+    }
+    
+    if (fileContext.content.split('\n').length > 500) {
+      suggestions.push("Consider breaking down large files into smaller modules");
+    }
+    
+    suggestions.push("You can increase timeout in VS Code settings: balaAnalyzer.analysis.timeoutMultiplier");
+    suggestions.push("Try switching to a lighter Ollama model like 'llama3.2:1b' for faster analysis");
+    
+    return "Suggestions: " + suggestions.join(". ");
   }
 
   // Circuit breaker methods
@@ -126,6 +162,10 @@ export class OllamaService {
     const prompt = this.buildAnalysisPrompt(fileContext);
     console.log(`🔍 Analyzing ${fileContext.language} code with Ollama...`);
     
+    // Calculate dynamic timeout based on file size and complexity
+    const dynamicTimeout = this.calculateAnalysisTimeout(fileContext);
+    console.log(`📊 Using dynamic timeout: ${dynamicTimeout}ms for ${fileContext.size} byte file`);
+    
     try {
       const completion = await this.withTimeout(
         this.client.chat.completions.create({
@@ -135,9 +175,9 @@ export class OllamaService {
             { role: 'user', content: prompt }
           ],
           temperature: 0.3,
-          max_tokens: 800,
+          max_tokens: 1200, // Increased token limit
         }),
-        Math.min(this.defaultTimeout * 0.8, 25000), // Use 80% of configured timeout, cap at 25s
+        dynamicTimeout,
         'Code analysis'
       );
 
@@ -146,9 +186,10 @@ export class OllamaService {
     } catch (error: any) {
       console.error('Ollama code analysis error:', error);
       
-      // Handle timeout specifically
+      // Enhanced error handling with user guidance
       if (error.message?.includes('timed out')) {
-        throw new Error(`Code analysis timed out. The Ollama server may be overloaded. Please try again.`);
+        const suggestions = this.getTimeoutSuggestions(fileContext);
+        throw new Error(`Code analysis timed out after ${dynamicTimeout}ms. ${suggestions}`);
       }
       
       // Handle connection errors
