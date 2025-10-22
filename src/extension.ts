@@ -9,7 +9,7 @@ let contextStore: ContextStore | undefined;
 let ollamaService: OllamaService | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
-  console.log('Bala AI Code Analyzer is now active!');
+  console.log('BuildAI Code Analyzer is now active!');
 
   // Get Ollama configuration from VSCode settings
   const config = vscode.workspace.getConfiguration('balaAnalyzer');
@@ -44,7 +44,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('balaAnalyzer.openAIChat', async () => {
       if (!ollamaService || !contextStore) {
-        vscode.window.showErrorMessage('Bala AI: Services not properly initialized. Please restart the extension.');
+        vscode.window.showErrorMessage('BuildAI: Services not properly initialized. Please restart the extension.');
         return;
       }
       ChatPanel.createOrShow(context.extensionUri, ollamaService, contextStore, analyzer);
@@ -60,7 +60,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('balaAnalyzer.clearCache', async () => {
       if (!contextStore) { return; }
       await contextStore.clear();
-      vscode.window.showInformationMessage('Bala AI: Cleared analysis cache.');
+      vscode.window.showInformationMessage('BuildAI: Cleared analysis cache.');
     }),
     vscode.commands.registerCommand('balaAnalyzer.configure', async () => {
       await vscode.commands.executeCommand('workbench.action.openSettings', 'balaAnalyzer');

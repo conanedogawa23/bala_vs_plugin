@@ -1,4 +1,4 @@
-# Bala AI Code Analyzer
+# BuildAI Code Analyzer
 
 An intelligent VSCode extension that leverages AI to analyze multiple files in your workspace, providing comprehensive insights, suggestions, and maintaining context relationships between files.
 
@@ -35,13 +35,13 @@ Install from the VS Code Marketplace or build from source.
 
 | Command | Description | Shortcut |
 |---------|-------------|----------|
-| `Bala AI: Analyze Entire Workspace` | Analyzes all supported files in the workspace | `Cmd/Ctrl + Alt + Shift + A` |
-| `Bala AI: Analyze Selected Files` | Analyzes selected files | `Cmd/Ctrl + Alt + A` |
-| `Bala AI: Open AI Assistant` | Opens the AI chat panel | `Cmd/Ctrl + Alt + C` |
-| `Bala AI: Generate Code Summary` | Creates a workspace summary | `Cmd/Ctrl + Alt + S` |
-| `Bala AI: Apply AI Suggestions` | Applies AI recommendations to code | - |
-| `Bala AI: Clear Analysis Cache` | Clears cached analysis data | - |
-| `Bala AI: Export Analysis Report` | Exports analysis results | - |
+| `BuildAI: Analyze Entire Workspace` | Analyzes all supported files in the workspace | `Cmd/Ctrl + Alt + Shift + A` |
+| `BuildAI: Analyze Selected Files` | Analyzes selected files | `Cmd/Ctrl + Alt + A` |
+| `BuildAI: Open AI Assistant` | Opens the AI chat panel | `Cmd/Ctrl + Alt + C` |
+| `BuildAI: Generate Code Summary` | Creates a workspace summary | `Cmd/Ctrl + Alt + S` |
+| `BuildAI: Apply AI Suggestions` | Applies AI recommendations to code | - |
+| `BuildAI: Clear Analysis Cache` | Clears cached analysis data | - |
+| `BuildAI: Export Analysis Report` | Exports analysis results | - |
 
 ## Configuration
 

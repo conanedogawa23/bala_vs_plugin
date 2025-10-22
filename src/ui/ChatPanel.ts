@@ -45,7 +45,7 @@ export class ChatPanel {
     // Otherwise, create a new panel
     const panel = vscode.window.createWebviewPanel(
       'balaAIChat',
-      'Bala AI Assistant',
+      'BuildAI Assistant',
       column || vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -165,7 +165,7 @@ export class ChatPanel {
 
   private _update() {
     const webview = this._panel.webview;
-    this._panel.title = 'Bala AI Assistant';
+    this._panel.title = 'BuildAI Assistant';
     this._panel.iconPath = {
       light: vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon-light.svg'),
       dark: vscode.Uri.joinPath(this._extensionUri, 'resources', 'icon-dark.svg')
@@ -192,14 +192,14 @@ export class ChatPanel {
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https:; script-src 'nonce-${nonce}'; style-src ${webview.cspSource} 'unsafe-inline';">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link href="${styleUri}" rel="stylesheet">
-        <title>Bala AI Assistant</title>
+        <title>BuildAI Assistant</title>
       </head>
       <body>
         <div class="chat-container">
           <div class="chat-header">
             <div class="header-title">
               <span class="icon">🤖</span>
-              <h1>Bala AI Assistant</h1>
+              <h1>BuildAI Assistant</h1>
             </div>
             <div class="header-controls">
               <button id="clearChat" class="btn-icon" title="Clear Chat">🗑️</button>

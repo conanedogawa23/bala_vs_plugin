@@ -1,9 +1,9 @@
 {
-  "name": "bala-ai-code-analyzer",
-  "displayName": "Bala AI Code Analyzer",
+  "name": "Build-ai-code-analyzer",
+  "displayName": "BuildAI Code Analyzer",
   "description": "AI-powered VSCode extension for multi-file workspace analysis with context retention and Ollama integration",
   "version": "1.0.0",
-  "publisher": "bala-dev",
+  "publisher": "Build-dev",
   "engines": {
     "vscode": "^1.74.0",
     "node": ">=16.0.0"
@@ -36,46 +36,46 @@
       {
         "command": "balaAnalyzer.analyzeWorkspace",
         "title": "🤖 Analyze Entire Workspace",
-        "category": "Bala AI"
+        "category": "BuildAI"
       },
       {
         "command": "balaAnalyzer.analyzeSelectedFiles",
         "title": "📁 Analyze Selected Files",
-        "category": "Bala AI"
+        "category": "BuildAI"
       },
       {
         "command": "balaAnalyzer.openAIChat",
         "title": "💬 Open AI Assistant",
-        "category": "Bala AI"
+        "category": "BuildAI"
       },
       {
         "command": "balaAnalyzer.generateSummary",
         "title": "📄 Generate Code Summary",
-        "category": "Bala AI"
+        "category": "BuildAI"
       },
       {
         "command": "balaAnalyzer.applyAISuggestions",
         "title": "✨ Apply AI Suggestions",
-        "category": "Bala AI"
+        "category": "BuildAI"
       },
       {
         "command": "balaAnalyzer.clearCache",
         "title": "🗑️ Clear Analysis Cache",
-        "category": "Bala AI"
+        "category": "BuildAI"
       },
       {
         "command": "balaAnalyzer.exportReport",
         "title": "📊 Export Analysis Report",
-        "category": "Bala AI"
+        "category": "BuildAI"
       },
       {
         "command": "balaAnalyzer.configure",
         "title": "⚙️ Configure Analyzer",
-        "category": "Bala AI"
+        "category": "BuildAI"
       }
     ],
     "configuration": {
-      "title": "Bala AI Code Analyzer (Ollama)",
+      "title": "BuildAI Code Analyzer (Ollama)",
       "properties": {
         "balaAnalyzer.ollama.baseURL": {
           "type": "string",
@@ -238,7 +238,7 @@
       "explorer": [
         {
           "id": "balaAnalyzerView",
-          "name": "Bala AI Analyzer",
+          "name": "BuildAI Analyzer",
           "icon": "$(robot)",
           "contextualTitle": "AI Code Analyzer"
         }
@@ -247,8 +247,8 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "bala-analyzer",
-          "title": "Bala AI Analyzer",
+          "id": "Build-analyzer",
+          "title": "BuildAI Analyzer",
           "icon": "$(robot)"
         }
       ]

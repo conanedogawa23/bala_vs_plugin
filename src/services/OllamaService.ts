@@ -31,7 +31,7 @@ export class OllamaService {
     
     // Initialize OpenAI client pointing to local Ollama instance
     this.client = new OpenAI({
-      baseURL: config.baseURL || 'http://localhost:11434/v1',
+      baseURL: config.baseURL || 'https://gpu2.oginnovation.com:11434/v1',
       apiKey: config.apiKey || 'ollama', // Ollama doesn't require a real API key
       timeout: config.timeout || 60000, // Increased to 60 seconds
     });

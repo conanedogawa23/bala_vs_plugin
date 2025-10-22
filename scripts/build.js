@@ -19,7 +19,7 @@ class BuildScript {
 
     async run() {
         try {
-            this.log('Starting Bala AI Code Analyzer build process...');
+            this.log('Starting BuildAI Code Analyzer build process...');
 
             // Pre-build checks
             await this.preBuildChecks();

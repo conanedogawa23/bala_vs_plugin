@@ -25,7 +25,7 @@ export class MultiFileAnalyzer {
 
   public async analyzeFiles(uris: vscode.Uri[] | undefined, maxConcurrent?: number): Promise<void> {
     if (!uris || uris.length === 0) {
-      vscode.window.showWarningMessage('Bala AI: No files selected for analysis.');
+      vscode.window.showWarningMessage('BuildAI: No files selected for analysis.');
       return;
     }
 
@@ -59,21 +59,21 @@ export class MultiFileAnalyzer {
       } as WorkspaceSummary;
 
       await this.contextStore.storeWorkspaceSummary(summary);
-      vscode.window.showInformationMessage('Bala AI: Analysis complete.');
+      vscode.window.showInformationMessage('BuildAI: Analysis complete.');
     });
   }
 
   public async generateWorkspaceSummary(): Promise<void> {
     const summary = await this.contextStore.getWorkspaceSummary();
     if (!summary) {
-      vscode.window.showWarningMessage('Bala AI: No workspace summary available. Run an analysis first.');
+      vscode.window.showWarningMessage('BuildAI: No workspace summary available. Run an analysis first.');
       return;
     }
 
     // Create a convenient view in output channel for now
-    const channel = vscode.window.createOutputChannel('Bala AI Summary');
+    const channel = vscode.window.createOutputChannel('BuildAI Summary');
     channel.clear();
-    channel.appendLine('Bala AI Workspace Summary');
+    channel.appendLine('BuildAI Workspace Summary');
     channel.appendLine('==========================');
     channel.appendLine(`Files analyzed: ${summary.totalFiles}`);
     channel.appendLine(`Suggestions: ${summary.suggestions.length}`);
@@ -95,7 +95,7 @@ export class MultiFileAnalyzer {
   public async applyAISuggestions(): Promise<void> {
     const summary = await this.contextStore.getWorkspaceSummary();
     if (!summary) {
-      vscode.window.showWarningMessage('Bala AI: No suggestions available to apply.');
+      vscode.window.showWarningMessage('BuildAI: No suggestions available to apply.');
       return;
     }
 
@@ -121,9 +121,9 @@ export class MultiFileAnalyzer {
       await editor.edit(editBuilder => {
         editBuilder.replace(suggestion.range, suggestion.suggestedCode || suggestion.originalCode);
       });
-      vscode.window.showInformationMessage('Bala AI: Applied first suggestion to the document.');
+      vscode.window.showInformationMessage('BuildAI: Applied first suggestion to the document.');
     } else {
-      vscode.window.showWarningMessage('Bala AI: No suggestions to apply for the selected file.');
+      vscode.window.showWarningMessage('BuildAI: No suggestions to apply for the selected file.');
     }
   }
 
