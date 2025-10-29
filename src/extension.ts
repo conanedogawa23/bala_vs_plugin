@@ -2,6 +2,7 @@ import { MultiFileAnalyzer } from '@/analyzers/MultiFileAnalyzer';
 import { ContextStore } from '@/services/ContextStore';
 import { OllamaService } from '@/services/OllamaService';
 import { ChatPanel } from '@/ui/ChatPanel';
+import { DEFAULT_CONFIG } from '@/constants/defaults';
 import * as vscode from 'vscode';
 
 let analyzer: MultiFileAnalyzer | undefined;
@@ -13,20 +14,33 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Get Ollama configuration from VSCode settings
   const config = vscode.workspace.getConfiguration('balaAnalyzer');
-  const baseURL = config.get<string>('ollama.baseURL') || 'http://localhost:11434/v1';
-  const model = config.get<string>('ollama.model') || 'llama3.2:3b';
-  const timeout = config.get<number>('ollama.timeout') || 30000;
-  const maxRetries = config.get<number>('ollama.maxRetries') || 3;
+  const baseURL = config.get<string>('ollama.baseURL') || DEFAULT_CONFIG.OLLAMA.BASE_URL;
+  const username = config.get<string>('ollama.username') || DEFAULT_CONFIG.OLLAMA.USERNAME;
+  const password = config.get<string>('ollama.password') || DEFAULT_CONFIG.OLLAMA.PASSWORD;
+  const model = config.get<string>('ollama.model') || DEFAULT_CONFIG.OLLAMA.MODEL;
+  const timeout = config.get<number>('ollama.timeout') || DEFAULT_CONFIG.OLLAMA.TIMEOUT;
+  const maxRetries = config.get<number>('ollama.maxRetries') || DEFAULT_CONFIG.OLLAMA.MAX_RETRIES;
 
   console.log(`Using Ollama server: ${baseURL} with model: ${model}`);
 
   contextStore = new ContextStore(context.globalStorageUri);
-  ollamaService = new OllamaService({ 
+  
+  // Build config object with conditional properties
+  const ollamaConfig: any = {
     baseURL,
     model,
     timeout,
     maxRetries
-  });
+  };
+  
+  if (username) {
+    ollamaConfig.username = username;
+  }
+  if (password) {
+    ollamaConfig.password = password;
+  }
+  
+  ollamaService = new OllamaService(ollamaConfig);
   analyzer = new MultiFileAnalyzer(contextStore, ollamaService);
 
   context.subscriptions.push(
@@ -40,7 +54,25 @@ export async function activate(context: vscode.ExtensionContext) {
       const uris = (Array.isArray(selectedUris) && selectedUris.length > 0)
         ? selectedUris
         : await pickFiles();
-      await analyzer.analyzeFiles(uris);
+      const summary = await analyzer.analyzeFiles(uris);
+      
+      // Show results in chat if available
+      if (summary && ChatPanel.currentPanel) {
+        const summaryText = await analyzer.generateWorkspaceSummary();
+        ChatPanel.currentPanel.displayAnalysisResults(summaryText);
+      } else if (summary) {
+        // If chat panel is not open, suggest opening it
+        const action = await vscode.window.showInformationMessage(
+          'Analysis complete! View results in AI Chat?',
+          'Open Chat',
+          'Dismiss'
+        );
+        if (action === 'Open Chat' && ollamaService && contextStore) {
+          ChatPanel.createOrShow(context.extensionUri, ollamaService, contextStore, analyzer);
+          const summaryText = await analyzer.generateWorkspaceSummary();
+          ChatPanel.currentPanel?.displayAnalysisResults(summaryText);
+        }
+      }
     }),
     vscode.commands.registerCommand('balaAnalyzer.openAIChat', async () => {
       if (!ollamaService || !contextStore) {
@@ -51,7 +83,20 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('balaAnalyzer.generateSummary', async () => {
       if (!analyzer) { return; }
-      await analyzer.generateWorkspaceSummary();
+      const summaryText = await analyzer.generateWorkspaceSummary();
+      
+      // Offer to show in chat
+      if (summaryText && summaryText !== 'No workspace summary available. Please run an analysis first.') {
+        const action = await vscode.window.showInformationMessage(
+          'View analysis summary in AI Chat?',
+          'Open in Chat',
+          'Output Channel Only'
+        );
+        if (action === 'Open in Chat' && ollamaService && contextStore) {
+          ChatPanel.createOrShow(context.extensionUri, ollamaService, contextStore, analyzer);
+          ChatPanel.currentPanel?.displayAnalysisResults(summaryText);
+        }
+      }
     }),
     vscode.commands.registerCommand('balaAnalyzer.applyAISuggestions', async () => {
       if (!analyzer) { return; }

@@ -122,17 +122,19 @@ export async function readFileContent(uri: vscode.Uri, maxSize: number = 2 * 102
  * Enhanced file content reader that prioritizes active editor content over file system
  * This ensures we analyze what the user is currently seeing/editing, including unsaved changes
  */
-export async function readFileContentSmart(uri: vscode.Uri, maxSize: number = 2 * 1024 * 1024): Promise<{ content: string; language: string; isFromEditor: boolean } | null> {
+export async function readFileContentSmart(uri: vscode.Uri, maxSize: number = 10 * 1024 * 1024): Promise<{ content: string; language: string; isFromEditor: boolean; isChunked?: boolean } | null> {
   try {
     // First priority: Check if file is open in any visible editor
     const visibleEditors = vscode.window.visibleTextEditors;
     for (const editor of visibleEditors) {
       if (editor.document.uri.toString() === uri.toString()) {
         console.log(`📝 Reading from active editor: ${uri.fsPath}`);
+        const content = editor.document.getText();
         return {
-          content: editor.document.getText(),
+          content: content.length > maxSize ? content.substring(0, maxSize) : content,
           language: editor.document.languageId,
-          isFromEditor: true
+          isFromEditor: true,
+          isChunked: content.length > maxSize
         };
       }
     }
@@ -142,10 +144,12 @@ export async function readFileContentSmart(uri: vscode.Uri, maxSize: number = 2 
     for (const document of openDocuments) {
       if (document.uri.toString() === uri.toString()) {
         console.log(`📄 Reading from open document: ${uri.fsPath}`);
+        const content = document.getText();
         return {
-          content: document.getText(),
+          content: content.length > maxSize ? content.substring(0, maxSize) : content,
           language: document.languageId,
-          isFromEditor: true
+          isFromEditor: true,
+          isChunked: content.length > maxSize
         };
       }
     }
@@ -154,33 +158,38 @@ export async function readFileContentSmart(uri: vscode.Uri, maxSize: number = 2 
     try {
       const document = await vscode.workspace.openTextDocument(uri);
       console.log(`💾 Reading from opened document: ${uri.fsPath}`);
+      const content = document.getText();
       return {
-        content: document.getText(),
+        content: content.length > maxSize ? content.substring(0, maxSize) : content,
         language: document.languageId,
-        isFromEditor: false
+        isFromEditor: false,
+        isChunked: content.length > maxSize
       };
     } catch (openError) {
       console.log(`⚠️ Could not open document, falling back to file system: ${uri.fsPath}`);
     }
 
-    // Final fallback: Read from file system
+    // Final fallback: Read from file system with chunking support
     const stat = await vscode.workspace.fs.stat(uri);
-    if (stat.size > maxSize) {
-      vscode.window.showWarningMessage(`File ${uri.fsPath} is too large (${formatFileSize(stat.size)}). Skipping analysis.`);
-      return null;
+    const isLargeFile = stat.size > maxSize;
+    
+    if (isLargeFile) {
+      console.log(`📦 Large file detected (${formatFileSize(stat.size)}). Reading first ${formatFileSize(maxSize)}...`);
     }
 
     const content = await vscode.workspace.fs.readFile(uri);
     const contentStr = new TextDecoder().decode(content);
+    const truncatedContent = isLargeFile ? contentStr.substring(0, maxSize) : contentStr;
     
     // Try to detect language from file extension
     const language = detectLanguageFromPath(uri.fsPath);
     
     console.log(`📁 Reading from file system: ${uri.fsPath}`);
     return {
-      content: contentStr,
+      content: truncatedContent,
       language,
-      isFromEditor: false
+      isFromEditor: false,
+      isChunked: isLargeFile
     };
   } catch (error) {
     console.error(`Failed to read file ${uri.fsPath}:`, error);

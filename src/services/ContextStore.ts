@@ -185,7 +185,8 @@ export class ContextStore {
       };
 
       // Store the context with a note about whether it came from editor
-      console.log(`📝 Created file context for ${uri.fsPath} (from ${contentResult.isFromEditor ? 'editor' : 'file system'})`);
+      const chunkNote = contentResult.isChunked ? ' (chunked due to size)' : '';
+      console.log(`📝 Created file context for ${uri.fsPath} (from ${contentResult.isFromEditor ? 'editor' : 'file system'}${chunkNote})`);
       await this.storeFileContext(fileContext);
       return fileContext;
     } catch (error) {

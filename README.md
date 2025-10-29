@@ -19,10 +19,31 @@ Install from the VS Code Marketplace or build from source.
 
 ### 2. Setup Ollama
 
+**Option A: Use GPU Server (Recommended)** ⚡
+
+The extension is pre-configured to use the GPU server:
+
+1. Get credentials from your administrator
+2. Set environment variables:
+   ```bash
+   export OLLAMA_USERNAME="your-username"
+   export OLLAMA_PASSWORD="your-password"
+   ```
+3. Build and run: `npm run build`
+
+📖 **See [QUICKSTART.md](QUICKSTART.md) for detailed setup**
+
+**Option B: Local Ollama**
+
 1. Install Ollama from [ollama.ai](https://ollama.ai)
-2. Pull a model: `ollama pull llama3.2:3b`
+2. Pull a model: `ollama pull mistral:7b`
 3. Start Ollama server: `ollama serve`
-4. The extension will connect to `http://localhost:11434` by default
+4. Update settings:
+   ```json
+   {
+     "balaAnalyzer.ollama.baseURL": "http://localhost:11434/v1"
+   }
+   ```
 
 ### 3. Start Analyzing
 
@@ -49,14 +70,21 @@ The extension provides extensive configuration options:
 
 ### Ollama Settings
 
+**GPU Server (Default)**:
 ```json
 {
-  "balaAnalyzer.ollama.baseURL": "http://localhost:11434/v1",
-  "balaAnalyzer.ollama.model": "llama3.2:3b",
+  "balaAnalyzer.ollama.baseURL": "https://gpu2.oginnovation.com:11434/v1",
+  "balaAnalyzer.ollama.username": "your-username",
+  "balaAnalyzer.ollama.password": "your-password",
+  "balaAnalyzer.ollama.model": "mistral:7b",
   "balaAnalyzer.ollama.timeout": 30000,
   "balaAnalyzer.ollama.maxRetries": 3
 }
 ```
+
+💡 **Tip**: Use environment variables for credentials instead of settings for better security.
+
+**Available Models**: `mistral:7b` (fast), `devstral:24b` (code-focused), `qwen3:14b`, `qwen3:30b`, `deepseek-r1:70b`, `gemma3:12b`
 
 ### Analysis Settings
 

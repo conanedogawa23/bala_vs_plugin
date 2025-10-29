@@ -1,3 +1,4 @@
+import { DEFAULT_CONFIG } from '@/constants/defaults';
 import {
   AIResponse,
   ChatAnalysisResult,
@@ -19,28 +20,50 @@ export class OllamaService {
   private config: OllamaConfig;
   private isApiAvailable: boolean = true;
   private lastFailureTime: number = 0;
-  private retryAfterMs: number = 60000; // 1 minute
+  private retryAfterMs: number = DEFAULT_CONFIG.RETRY.CIRCUIT_BREAKER_TIMEOUT;
   
   // Enhanced timeout and retry configuration
   private readonly defaultTimeout: number;
   private readonly maxRetries: number;
-  private readonly baseRetryDelay: number = 1000; // 1 second
+  private readonly baseRetryDelay: number = DEFAULT_CONFIG.RETRY.BASE_DELAY;
 
   constructor(config: OllamaConfig) {
     this.config = config;
     
-    // Initialize OpenAI client pointing to local Ollama instance
-    this.client = new OpenAI({
-      baseURL: config.baseURL || 'https://gpu2.oginnovation.com:11434/v1',
-      apiKey: config.apiKey || 'ollama', // Ollama doesn't require a real API key
-      timeout: config.timeout || 60000, // Increased to 60 seconds
-    });
+    // Initialize OpenAI client pointing to GPU Ollama instance
+    const baseURL = config.baseURL || DEFAULT_CONFIG.OLLAMA.BASE_URL;
+    
+    // For Ollama with Basic Auth, we need to create proper Basic Auth header
+    let authOptions: any = {
+      baseURL,
+      apiKey: DEFAULT_CONFIG.OLLAMA.API_KEY,
+      timeout: config.timeout || DEFAULT_CONFIG.OLLAMA.TIMEOUT,
+    };
+    
+    if (config.username && config.password) {
+      // Create Basic Auth header: "Basic base64(username:password)"
+      const credentials = Buffer.from(`${config.username}:${config.password}`).toString('base64');
+      authOptions.defaultHeaders = {
+        'Authorization': `Basic ${credentials}`
+      };
+      console.log(`🔧 Initializing Ollama client with Basic Auth for user: ${config.username}`);
+    } else if (DEFAULT_CONFIG.OLLAMA.USERNAME && DEFAULT_CONFIG.OLLAMA.PASSWORD) {
+      const credentials = Buffer.from(`${DEFAULT_CONFIG.OLLAMA.USERNAME}:${DEFAULT_CONFIG.OLLAMA.PASSWORD}`).toString('base64');
+      authOptions.defaultHeaders = {
+        'Authorization': `Basic ${credentials}`
+      };
+      console.log(`🔧 Initializing Ollama client with Basic Auth `);
+    }
+    
+    console.log(`🔧 Connecting to Ollama server: ${baseURL}`);
+    
+    this.client = new OpenAI(authOptions);
     
     this.isApiAvailable = true;
     
-    // Use configured timeout or sensible defaults - increased timeouts
-    this.defaultTimeout = config.timeout || 60000; // 60 seconds default (was 30)
-    this.maxRetries = config.maxRetries || 2; // Reduced retries to avoid long waits
+    // Use configured timeout or sensible defaults
+    this.defaultTimeout = config.timeout || DEFAULT_CONFIG.OLLAMA.TIMEOUT;
+    this.maxRetries = config.maxRetries || DEFAULT_CONFIG.OLLAMA.MAX_RETRIES;
     
     console.log(`🚀 Ollama Service initialized with ${this.defaultTimeout}ms timeout and ${this.maxRetries} max retries`);
   }
@@ -94,19 +117,19 @@ export class OllamaService {
 
   // Calculate dynamic timeout based on file characteristics
   private calculateAnalysisTimeout(fileContext: FileContext): number {
-    const baseTimeout = 30000; // 30 seconds base
+    const baseTimeout = DEFAULT_CONFIG.ANALYSIS.BASE_TIMEOUT;
     const sizeMultiplier = Math.min(fileContext.size / 1000, 10); // Max 10x multiplier for very large files
     const lineCount = fileContext.content.split('\n').length;
     const lineMultiplier = Math.min(lineCount / 100, 5); // Max 5x multiplier for line count
     
     // Get user configuration for timeout multiplier
     const config = vscode.workspace.getConfiguration('balaAnalyzer');
-    const timeoutMultiplier = config.get<number>('analysis.timeoutMultiplier') || 1;
+    const timeoutMultiplier = config.get<number>('analysis.timeoutMultiplier') || DEFAULT_CONFIG.ANALYSIS.TIMEOUT_MULTIPLIER;
     
     const calculatedTimeout = baseTimeout * (1 + sizeMultiplier * 0.1 + lineMultiplier * 0.1) * timeoutMultiplier;
     
-    // Cap at 2 minutes to prevent extremely long waits
-    return Math.min(calculatedTimeout, 120000);
+    // Cap at maximum timeout to prevent extremely long waits
+    return Math.min(calculatedTimeout, DEFAULT_CONFIG.ANALYSIS.MAX_TIMEOUT);
   }
 
   // Provide helpful suggestions when timeouts occur
@@ -195,7 +218,12 @@ export class OllamaService {
       // Handle connection errors
       if (error.message?.includes('ECONNREFUSED') || error.message?.includes('fetch failed')) {
         this.markApiUnavailable();
-        throw new Error('Cannot connect to Ollama server. Please ensure Ollama is running on http://localhost:11434');
+        throw new Error(`Cannot connect to Ollama server at ${this.config.baseURL || 'https://gpu2.oginnovation.com:11434'}. Please check the server is running and accessible.`);
+      }
+      
+      // Handle authentication errors
+      if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+        throw new Error('Ollama server requires authentication. Please configure your API key in settings.');
       }
 
       throw new Error(`AI analysis failed: ${error.message || error}`);
@@ -386,17 +414,20 @@ export class OllamaService {
 
   private getSelectedModel(): string {
     const config = vscode.workspace.getConfiguration('balaAnalyzer');
-    const selectedModel = config.get<string>('ollama.model') || 'llama3.2:3b';
+    const selectedModel = config.get<string>('ollama.model') || DEFAULT_CONFIG.OLLAMA.MODEL;
     
     return selectedModel;
   }
 
   private buildAnalysisPrompt(fileContext: FileContext): string {
+    const isLargeFile = fileContext.content.length > 50000;
+    const truncationNote = isLargeFile ? '\n**Note:** This is a large file. Analysis focused on key sections and overall structure.' : '';
+    
     return `Analyze the following ${fileContext.language} code and provide insights:
 
 File: ${fileContext.uri.fsPath}
 Language: ${fileContext.language}
-Size: ${fileContext.size} bytes
+Size: ${fileContext.size} bytes${truncationNote}
 
 Code:
 \`\`\`${fileContext.language}

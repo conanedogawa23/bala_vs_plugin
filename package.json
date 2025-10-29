@@ -79,27 +79,53 @@
       "properties": {
         "balaAnalyzer.ollama.baseURL": {
           "type": "string",
-          "default": "http://localhost:11434/v1",
-          "markdownDescription": "Ollama server base URL. Default is http://localhost:11434/v1"
+          "default": "https://gpu2.oginnovation.com:11434/v1",
+          "markdownDescription": "Ollama server base URL. Default is https://gpu2.oginnovation.com:11434/v1"
+        },
+        "balaAnalyzer.ollama.username": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Username for HTTP Basic Authentication (if server is protected). Can also be set via OLLAMA_USERNAME environment variable."
+        },
+        "balaAnalyzer.ollama.password": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Password for HTTP Basic Authentication (if server is protected). Can also be set via OLLAMA_PASSWORD environment variable. **Note**: Stored in plain text in settings."
         },
         "balaAnalyzer.ollama.model": {
           "type": "string",
-          "default": "llama3.2:3b",
-          "markdownDescription": "Ollama model to use for code analysis. Available models can be seen with 'ollama list'"
+          "default": "mistral:7b",
+          "enum": [
+            "qwen3:30b",
+            "qwen3:14b",
+            "deepseek-r1:70b",
+            "gemma3:12b",
+            "devstral:24b",
+            "mistral:7b"
+          ],
+          "enumDescriptions": [
+            "Qwen3 30B - MoE Thinking model, 19GB, Best for complex reasoning",
+            "Qwen3 14B - Dense Thinking model, 9.3GB, Balanced performance",
+            "DeepSeek-R1 70B - Distilled model, 43GB, Best quality, slower",
+            "Gemma3 12B - Multimodal (text+image), 8.1GB",
+            "Devstral 24B - Code-focused, 14GB, Best for development",
+            "Mistral 7B - Fast and efficient, 4.1GB, Recommended default"
+          ],
+          "markdownDescription": "Ollama model for code analysis. **Recommended: mistral:7b** (fast) or **devstral:24b** (code-focused)"
         },
         "balaAnalyzer.ollama.timeout": {
           "type": "number",
-          "default": 30000,
+          "default": 60000,
           "minimum": 10000,
           "maximum": 120000,
-          "description": "Ollama API timeout in milliseconds"
+          "description": "Ollama API timeout in milliseconds (default: 60 seconds)"
         },
         "balaAnalyzer.ollama.maxRetries": {
           "type": "number",
-          "default": 3,
-          "minimum": 1,
+          "default": 2,
+          "minimum": 0,
           "maximum": 10,
-          "description": "Maximum number of retries for Ollama API calls"
+          "description": "Maximum number of retries for Ollama API calls (default: 2)"
         },
         "balaAnalyzer.analysis.maxFileSize": {
           "type": "number",
@@ -119,7 +145,7 @@
           "type": "number",
           "default": 1,
           "minimum": 0.5,
-          "maximum": 3.0,
+          "maximum": 3,
           "description": "Multiplier for dynamic timeout calculation based on file size and complexity"
         },
         "balaAnalyzer.analysis.maxConcurrentFiles": {
@@ -356,6 +382,7 @@
     "@typescript-eslint/parser": "^6.0.0",
     "@vscode/test-electron": "^2.3.0",
     "@vscode/vsce": "^3.2.1",
+    "dotenv": "^17.2.3",
     "eslint": "^8.45.0",
     "eslint-plugin-security": "^3.0.1",
     "jest": "^29.6.0",
@@ -366,15 +393,15 @@
     "typescript": "^5.1.0",
     "webpack": "^5.88.0",
     "webpack-cli": "^5.1.0"
-    },
-    "dependencies": {
-      "openai": "^5.20.1",
-      "axios": "^1.6.0",
-      "cheerio": "^1.0.0-rc.12",
-      "lodash": "^4.17.21",
-      "p-limit": "^4.0.0",
-      "uuid": "^9.0.0",
-      "winston": "^3.10.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12",
+    "lodash": "^4.17.21",
+    "openai": "^5.20.1",
+    "p-limit": "^4.0.0",
+    "uuid": "^9.0.0",
+    "winston": "^3.10.0"
   },
   "extensionDependencies": [],
   "bundledDependencies": [],

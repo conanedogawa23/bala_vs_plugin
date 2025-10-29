@@ -514,4 +514,30 @@ export class ChatPanel {
     }
     return text;
   }
+
+  /**
+   * Display analysis results in the chat window
+   */
+  public displayAnalysisResults(analysisText: string) {
+    const analysisMessage: ChatMessage = {
+      id: this._generateMessageId(),
+      type: 'assistant',
+      content: analysisText,
+      timestamp: new Date(),
+      context: this._getCurrentContext(),
+      metadata: {
+        isAnalysisResult: true
+      }
+    };
+
+    this._currentSession.messages.push(analysisMessage);
+    this._currentSession.updatedAt = new Date();
+
+    this._sendToWebview({
+      type: ExtensionMessageType.MESSAGE_RESPONSE,
+      payload: { 
+        assistantMessage: analysisMessage
+      }
+    });
+  }
 }

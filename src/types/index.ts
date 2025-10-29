@@ -77,8 +77,9 @@ export interface WorkspaceSummary {
 }
 
 export interface OllamaConfig {
-  apiKey?: string; // Optional for Ollama
   baseURL?: string; // Default: http://localhost:11434/v1
+  username?: string; // For HTTP Basic Auth (if server is protected)
+  password?: string; // For HTTP Basic Auth (if server is protected)
   model?: string;
   timeout?: number;
   maxRetries?: number;
@@ -163,6 +164,7 @@ export interface ChatMessageMetadata {
   fileAnalyzed?: string;
   relatedFiles?: string[];
   isFromEditor?: boolean; // Whether the analyzed content came from active editor or file system
+  isAnalysisResult?: boolean; // Whether this is an automated analysis result
 }
 
 export interface ChatSession {
