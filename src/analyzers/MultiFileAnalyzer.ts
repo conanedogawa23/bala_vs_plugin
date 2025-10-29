@@ -1,6 +1,7 @@
 import { ContextStore } from '@/services/ContextStore';
 import { OllamaService } from '@/services/OllamaService';
 import { AnalysisResult, FileContext, WorkspaceSummary } from '@/types';
+import { DEFAULT_CONFIG } from '@/constants/defaults';
 import pLimit from 'p-limit';
 import * as vscode from 'vscode';
 
@@ -14,12 +15,11 @@ export class MultiFileAnalyzer {
   }
 
   public async analyzeWorkspace(): Promise<void> {
-    const config = vscode.workspace.getConfiguration('balaAnalyzer');
-    const include = config.get<string[]>('analysis.includeFileTypes') || [];
-    const exclude = config.get<string[]>('analysis.excludePatterns') || [];
-    const maxConcurrent = config.get<number>('analysis.maxConcurrentFiles') || 5;
+    const include = DEFAULT_CONFIG.FILE_PATTERNS.INCLUDE;
+    const exclude = DEFAULT_CONFIG.FILE_PATTERNS.EXCLUDE;
+    const maxConcurrent = DEFAULT_CONFIG.ANALYSIS.MAX_CONCURRENT_FILES;
 
-    const files = await this.findFiles(include, exclude);
+    const files = await this.findFiles([...include], [...exclude]);
     await this.analyzeFiles(files, maxConcurrent);
   }
 

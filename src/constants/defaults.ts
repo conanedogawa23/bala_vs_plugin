@@ -170,23 +170,3 @@ export const ENV_VARS = {
   OLLAMA_PASSWORD: 'OLLAMA_PASSWORD', // No longer used - credentials are hardcoded
   OLLAMA_BASE_URL: 'OLLAMA_BASE_URL',
 } as const;
-
-/**
- * VS Code configuration keys
- */
-export const CONFIG_KEYS = {
-  OLLAMA: {
-    BASE_URL: 'balaAnalyzer.ollama.baseURL',
-    USERNAME: 'balaAnalyzer.ollama.username',
-    PASSWORD: 'balaAnalyzer.ollama.password',
-    MODEL: 'balaAnalyzer.ollama.model',
-    TIMEOUT: 'balaAnalyzer.ollama.timeout',
-    MAX_RETRIES: 'balaAnalyzer.ollama.maxRetries',
-  },
-  ANALYSIS: {
-    MAX_FILE_SIZE: 'balaAnalyzer.analysis.maxFileSize',
-    TIMEOUT: 'balaAnalyzer.analysis.timeout',
-    TIMEOUT_MULTIPLIER: 'balaAnalyzer.analysis.timeoutMultiplier',
-    MAX_CONCURRENT_FILES: 'balaAnalyzer.analysis.maxConcurrentFiles',
-  },
-} as const;

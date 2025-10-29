@@ -12,14 +12,13 @@ let ollamaService: OllamaService | undefined;
 export async function activate(context: vscode.ExtensionContext) {
   console.log('BuildAI Code Analyzer is now active!');
 
-  // Get Ollama configuration from VSCode settings
-  const config = vscode.workspace.getConfiguration('balaAnalyzer');
-  const baseURL = config.get<string>('ollama.baseURL') || DEFAULT_CONFIG.OLLAMA.BASE_URL;
-  const username = config.get<string>('ollama.username') || DEFAULT_CONFIG.OLLAMA.USERNAME;
-  const password = config.get<string>('ollama.password') || DEFAULT_CONFIG.OLLAMA.PASSWORD;
-  const model = config.get<string>('ollama.model') || DEFAULT_CONFIG.OLLAMA.MODEL;
-  const timeout = config.get<number>('ollama.timeout') || DEFAULT_CONFIG.OLLAMA.TIMEOUT;
-  const maxRetries = config.get<number>('ollama.maxRetries') || DEFAULT_CONFIG.OLLAMA.MAX_RETRIES;
+  // Use hardcoded configuration from DEFAULT_CONFIG
+  const baseURL = DEFAULT_CONFIG.OLLAMA.BASE_URL;
+  const username = DEFAULT_CONFIG.OLLAMA.USERNAME;
+  const password = DEFAULT_CONFIG.OLLAMA.PASSWORD;
+  const model = DEFAULT_CONFIG.OLLAMA.MODEL;
+  const timeout = DEFAULT_CONFIG.OLLAMA.TIMEOUT;
+  const maxRetries = DEFAULT_CONFIG.OLLAMA.MAX_RETRIES;
 
   console.log(`Using Ollama server: ${baseURL} with model: ${model}`);
 
@@ -106,9 +105,6 @@ export async function activate(context: vscode.ExtensionContext) {
       if (!contextStore) { return; }
       await contextStore.clear();
       vscode.window.showInformationMessage('BuildAI: Cleared analysis cache.');
-    }),
-    vscode.commands.registerCommand('balaAnalyzer.configure', async () => {
-      await vscode.commands.executeCommand('workbench.action.openSettings', 'balaAnalyzer');
     }),
   );
 }

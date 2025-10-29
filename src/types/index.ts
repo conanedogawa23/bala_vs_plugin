@@ -77,7 +77,7 @@ export interface WorkspaceSummary {
 }
 
 export interface OllamaConfig {
-  baseURL?: string; // Default: http://localhost:11434/v1
+  baseURL?: string;
   username?: string; // For HTTP Basic Auth (if server is protected)
   password?: string; // For HTTP Basic Auth (if server is protected)
   model?: string;

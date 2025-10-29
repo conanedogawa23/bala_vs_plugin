@@ -122,9 +122,8 @@ export class OllamaService {
     const lineCount = fileContext.content.split('\n').length;
     const lineMultiplier = Math.min(lineCount / 100, 5); // Max 5x multiplier for line count
     
-    // Get user configuration for timeout multiplier
-    const config = vscode.workspace.getConfiguration('balaAnalyzer');
-    const timeoutMultiplier = config.get<number>('analysis.timeoutMultiplier') || DEFAULT_CONFIG.ANALYSIS.TIMEOUT_MULTIPLIER;
+    // Use hardcoded timeout multiplier
+    const timeoutMultiplier = DEFAULT_CONFIG.ANALYSIS.TIMEOUT_MULTIPLIER;
     
     const calculatedTimeout = baseTimeout * (1 + sizeMultiplier * 0.1 + lineMultiplier * 0.1) * timeoutMultiplier;
     
@@ -144,8 +143,7 @@ export class OllamaService {
       suggestions.push("Consider breaking down large files into smaller modules");
     }
     
-    suggestions.push("You can increase timeout in VS Code settings: balaAnalyzer.analysis.timeoutMultiplier");
-    suggestions.push("Try switching to a lighter Ollama model like 'llama3.2:1b' for faster analysis");
+    suggestions.push("Try switching to a lighter Ollama model in defaults.ts for faster analysis");
     
     return "Suggestions: " + suggestions.join(". ");
   }
@@ -413,10 +411,7 @@ export class OllamaService {
   }
 
   private getSelectedModel(): string {
-    const config = vscode.workspace.getConfiguration('balaAnalyzer');
-    const selectedModel = config.get<string>('ollama.model') || DEFAULT_CONFIG.OLLAMA.MODEL;
-    
-    return selectedModel;
+    return DEFAULT_CONFIG.OLLAMA.MODEL;
   }
 
   private buildAnalysisPrompt(fileContext: FileContext): string {
