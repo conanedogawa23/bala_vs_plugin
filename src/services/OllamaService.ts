@@ -216,7 +216,7 @@ export class OllamaService {
       // Handle connection errors
       if (error.message?.includes('ECONNREFUSED') || error.message?.includes('fetch failed')) {
         this.markApiUnavailable();
-        throw new Error(`Cannot connect to Ollama server at ${this.config.baseURL || 'https://gpu2.oginnovation.com:11434'}. Please check the server is running and accessible.`);
+        throw new Error(`Cannot connect to Ollama server at ${this.config.baseURL || 'https://gpu1.oginnovation.com:11433'}. Please check the server is running and accessible.`);
       }
       
       // Handle authentication errors

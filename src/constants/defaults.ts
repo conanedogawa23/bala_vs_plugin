@@ -8,7 +8,7 @@
 export const DEFAULT_CONFIG = {
   // Ollama Server Configuration
   OLLAMA: {
-    BASE_URL: 'https://gpu2.oginnovation.com:11434/v1',
+    BASE_URL: 'https://gpu1.oginnovation.com:11433/v1',
     MODEL: 'mistral:7b',
     TIMEOUT: 60000, // 60 seconds in milliseconds
     MAX_RETRIES: 2,

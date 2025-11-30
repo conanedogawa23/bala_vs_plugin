@@ -9,7 +9,7 @@ require('dotenv').config();
 const OpenAI = require('openai');
 
 // Configuration
-const OLLAMA_BASE_URL = 'https://gpu2.oginnovation.com:11434/v1';
+const OLLAMA_BASE_URL = 'https://gpu1.oginnovation.com:11434/v1';
 const OLLAMA_USERNAME = process.env.OLLAMA_USERNAME || 'bala';
 const OLLAMA_PASSWORD = process.env.OLLAMA_PASSWORD || 'Isys@969Isys@969';
 const OLLAMA_MODEL = 'mistral:7b'; // Default model
